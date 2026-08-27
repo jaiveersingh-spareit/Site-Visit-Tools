@@ -1,0 +1,2347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Spare-it VISION · Site Audit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* ── SPARE-IT BRAND TOKENS ── */
+    :root {
+      --green:        #34A853;
+      --green-dark:   #278041;
+      --green-light:  #E6F4EB;
+      --yellow:       #FFD600;
+      --yellow-dark:  #B89A00;
+      --dark:         #2A2A2A;
+      --dark2:        #3D3D3D;
+      --bg:           #F5F5F5;
+      --card:         #FFFFFF;
+      --muted:        #757575;
+      --border:       #E0E0E0;
+      --danger:       #EE4547;
+      --radius:       16px;
+      --radius-sm:    10px;
+      --shadow:       0 1px 6px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06);
+      --shadow-sm:    0 1px 4px rgba(0,0,0,0.06);
+    }
+
+    /* ── RESET ── */
+    *, *::before, *::after {
+      box-sizing: border-box; margin: 0; padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    html { height: 100%; -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--dark);
+      max-width: 430px;
+      margin: 0 auto;
+      min-height: 100dvh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── HEADER ── */
+    .hdr {
+      background: var(--dark);
+      padding: 0 18px;
+      padding-top: max(14px, env(safe-area-inset-top));
+      padding-bottom: 12px;
+      display: flex; align-items: center; gap: 12px;
+      position: sticky; top: 0; z-index: 80;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+    }
+    .hdr-back {
+      background: rgba(255,255,255,0.12);
+      border: none; color: #fff;
+      width: 40px; height: 40px;
+      border-radius: var(--radius-sm);
+      font-size: 20px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: background 0.15s;
+      -webkit-appearance: none;
+    }
+    .hdr-back:active { background: rgba(255,255,255,0.25); }
+    .hdr-titles { flex: 1; min-width: 0; }
+    .hdr-titles h1 {
+      font-size: 15px; font-weight: 700; color: #fff;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .hdr-titles .sub {
+      font-size: 11px; color: rgba(255,255,255,0.55);
+      margin-top: 1px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    /* ── SCREENS ── */
+    .screen { display: none; padding: 16px 16px 96px; }
+    .screen.active { display: block; }
+
+    /* ── HERO (home screen only) ── */
+    .hero {
+      background: var(--dark);
+      margin: -16px -16px 20px;
+      padding: 28px 20px 24px;
+      text-align: center;
+    }
+    .hero-tag {
+      display: inline-block;
+      background: var(--yellow);
+      color: var(--dark);
+      font-size: 10px; font-weight: 800;
+      letter-spacing: 1.2px; text-transform: uppercase;
+      padding: 4px 10px; border-radius: 20px;
+      margin-bottom: 10px;
+    }
+    .hero h1 {
+      color: #fff;
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+    .hero p {
+      color: rgba(255,255,255,0.7);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* ── SECTION LABEL ── */
+    .sec-label {
+      font-size: 10px; font-weight: 800; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.9px;
+      margin: 20px 0 8px; padding: 0 2px;
+    }
+    .sec-label:first-child { margin-top: 0; }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    /* ── FORM ELEMENTS ── */
+    .fgroup { margin-bottom: 14px; }
+    .fgroup:last-child { margin-bottom: 0; }
+    .flabel {
+      display: block;
+      font-size: 10px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.7px;
+      margin-bottom: 6px;
+    }
+    input[type=text],
+    input[type=email],
+    input[type=date],
+    select,
+    textarea {
+      width: 100%;
+      padding: 14px 15px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 16px;
+      font-family: inherit; font-weight: 500;
+      background: #fff; color: var(--dark);
+      -webkit-appearance: none; appearance: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(52,168,83,0.12);
+    }
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 4.5L11 1' stroke='%23757575' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 38px;
+    }
+
+    /* ── CHECKBOXES ── */
+    .checkbox-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+    }
+    input[type=checkbox] {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+      accent-color: var(--green);
+      margin: 0;
+      flex-shrink: 0;
+    }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+      width: 100%; padding: 16px;
+      border: none; border-radius: var(--radius);
+      font-size: 15px; font-weight: 700; font-family: inherit;
+      letter-spacing: 0.2px; cursor: pointer;
+      transition: transform 0.1s, filter 0.15s;
+      -webkit-appearance: none;
+      min-height: 48px;
+      touch-action: manipulation;
+      -webkit-touch-callout: none;
+    }
+    .btn-primary {
+      background: var(--green);
+      color: #fff;
+    }
+    .btn-primary:active {
+      filter: brightness(0.92);
+    }
+    .btn-secondary {
+      background: var(--card);
+      color: var(--dark);
+      border: 1.5px solid var(--border);
+    }
+    .btn-secondary:active {
+      background: #F9F9F9;
+    }
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+    }
+    .btn-danger:active {
+      filter: brightness(0.92);
+    }
+    .btn-small {
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      min-height: auto;
+      width: auto;
+    }
+
+    /* ── MODALS ── */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 100;
+      overflow-y: auto;
+      padding: 20px 16px;
+    }
+    .modal.active {
+      display: flex;
+      align-items: flex-end;
+    }
+    .modal-content {
+      background: var(--card);
+      border-radius: var(--radius) var(--radius) 0 0;
+      padding: 20px;
+      width: 100%;
+      max-width: 430px;
+      margin: 0 auto;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal-fullscreen {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--card);
+      z-index: 110;
+      overflow-y: auto;
+      flex-direction: column;
+    }
+    .modal-fullscreen.active {
+      display: flex;
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .modal-header h2 {
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 0;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-body {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    .modal-footer {
+      padding: 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    /* ── FLOOR PLAN ── */
+    .floor-plan-container {
+      position: relative;
+      width: 100%;
+      background: #fff;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      margin-bottom: 16px;
+      min-height: 300px;
+      max-height: 500px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      aspect-ratio: 4 / 3;
+    }
+    #pins-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 20;
+      pointer-events: none;
+    }
+    .floor-plan-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+      cursor: pointer;
+    }
+    .pin {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      background: var(--green);
+      border: 3px solid #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-weight: 700;
+      color: #fff;
+      font-size: 16px;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      z-index: 10;
+      pointer-events: auto;
+      -webkit-user-select: none;
+      user-select: none;
+      touch-action: none;
+    }
+    .pin.highlighted {
+      box-shadow: 0 0 0 6px rgba(52,168,83,0.3);
+    }
+
+    /* ── STATION LIST ── */
+    .station-item {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      margin-bottom: 10px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .station-thumb {
+      width: 60px;
+      height: 60px;
+      background: var(--bg);
+      border-radius: var(--radius-sm);
+      flex-shrink: 0;
+      background-size: cover;
+      background-position: center;
+      border: 1px solid var(--border);
+    }
+    .station-content {
+      flex: 1;
+      min-width: 0;
+    }
+    .station-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--dark);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .station-name-edit {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 0;
+      width: 18px;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+    .station-streams {
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .stream-tag {
+      display: inline-block;
+      background: var(--green-light);
+      color: var(--green-dark);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .station-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .station-actions button {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 4px;
+      font-size: 16px;
+    }
+
+    /* ── PHOTO GRID ── */
+    .photo-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .photo-item {
+      position: relative;
+      aspect-ratio: 1;
+      background: var(--bg);
+      border: 1.5px dashed var(--border);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .photo-item.filled {
+      border-style: solid;
+      background-size: cover;
+      background-position: center;
+    }
+    .photo-item-label {
+      position: absolute;
+      top: 6px; left: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      background: var(--dark);
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 3px;
+      z-index: 5;
+    }
+    .photo-item-remove {
+      position: absolute;
+      top: 6px; right: 6px;
+      background: var(--danger);
+      color: #fff;
+      border: none;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 10;
+      font-size: 14px;
+    }
+    .photo-upload-btn {
+      width: 100%;
+      height: 100%;
+      background: none;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+    .file-input {
+      display: none;
+    }
+
+    /* ── UTILITY ── */
+    .spacer { height: 16px; }
+    .text-center { text-align: center; }
+    .text-muted { color: var(--muted); }
+    .text-danger { color: var(--danger); }
+    .text-small { font-size: 12px; }
+
+    /* ── HIGHLIGHT ANIMATION ── */
+    .highlight-pulse {
+      animation: highlightPulse 2s ease-in-out;
+    }
+    @keyframes highlightPulse {
+      0% {
+        border-color: var(--yellow);
+        box-shadow: 0 0 0 0 rgba(255, 214, 0, 0.7);
+      }
+      50% {
+        box-shadow: 0 0 0 8px rgba(255, 214, 0, 0);
+      }
+      100% {
+        border-color: var(--border);
+        box-shadow: 0 0 0 0 rgba(255, 214, 0, 0);
+      }
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (orientation: landscape) {
+      .floor-plan-container {
+        min-height: 350px;
+        max-height: 400px;
+      }
+    }
+  </style>
+
+  <!-- External Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/build/index.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<div class="hdr">
+  <button class="hdr-back" id="hdr-back" style="display:none;">←</button>
+  <div class="hdr-titles">
+    <h1 id="hdr-title">Spare-it</h1>
+    <div class="sub" id="hdr-sub"></div>
+  </div>
+</div>
+
+<!-- ── HOME SCREEN ── -->
+<div id="s-home" class="screen active">
+  <div class="hero">
+    <div class="hero-tag">Site Audit</div>
+    <h1>Bin Audit</h1>
+    <p>Capture your station setup and waste streams</p>
+  </div>
+
+  <div class="card">
+    <div class="sec-label">Building Details</div>
+
+    <div class="fgroup">
+      <label class="flabel">Building Name</label>
+      <input type="text" id="buildingName" placeholder="e.g., Main Office">
+    </div>
+
+    <div class="fgroup">
+      <label class="flabel">Address</label>
+      <input type="text" id="buildingAddress" placeholder="e.g., 125 Summer Street">
+    </div>
+
+    <div class="fgroup">
+      <label class="flabel">Occupancy Type</label>
+      <select id="occupancyType">
+        <option value="">Select type...</option>
+        <option value="office">Office</option>
+        <option value="warehouse">Warehouse</option>
+        <option value="retail">Retail</option>
+        <option value="hospitality">Hospitality</option>
+        <option value="healthcare">Healthcare</option>
+        <option value="education">Education</option>
+        <option value="industrial">Industrial</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+
+    <div class="fgroup">
+      <label class="flabel">Assessor Name</label>
+      <input type="text" id="assessorName" placeholder="Your name">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sec-label">Waste Streams</div>
+    <div class="fgroup">
+      <label class="flabel">Select waste streams at this location</label>
+      <div class="checkbox-group" id="wasteStreamsGroup">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sec-label">Floors</div>
+    <div class="fgroup">
+      <label class="flabel">How many floors to audit?</label>
+      <input type="number" id="floorCount" placeholder="e.g., 3" min="1" value="1">
+    </div>
+  </div>
+
+  <button class="btn btn-primary" id="btn-start">Start Audit</button>
+  <div class="spacer"></div>
+</div>
+
+<!-- ── FLOORS SCREEN ── -->
+<div id="s-floors" class="screen">
+  <div class="sec-label">Select Floor</div>
+  <div id="floors-list">
+    <!-- Populated by JS -->
+  </div>
+  <div class="spacer"></div>
+</div>
+
+<!-- ── FLOOR DETAIL SCREEN ── -->
+<div id="s-floor" class="screen">
+  <div class="sec-label" id="floor-label">Floor 1</div>
+
+  <div class="card">
+    <label class="flabel">Floor Plan</label>
+    <div class="floor-plan-container" id="floorPlanWrapper">
+      <div class="floor-plan-canvas" id="floorPlanCanvas"></div>
+      <div id="pins-container"></div>
+    </div>
+    <input type="file" id="floorPlanInput" class="file-input" accept="image/*">
+    <button class="btn btn-secondary" id="btn-upload-plan">Upload Floor Plan</button>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div class="sec-label">Stations on This Floor</div>
+      <button class="btn btn-small btn-primary" id="btn-add-station" onclick="openAddStationModal()">+ Add</button>
+    </div>
+    <div id="stations-list">
+      <p class="text-muted text-center text-small" style="padding:20px 0;">No stations yet.</p>
+    </div>
+  </div>
+
+  <div id="placement-instruction" style="display:none;padding:16px;background:var(--green-light);border-radius:var(--radius-sm);margin-bottom:16px;border-left:4px solid var(--green);">
+    <p style="font-size:13px;font-weight:600;color:var(--green-dark);margin:0;">📍 Click on the floor plan to position the station</p>
+  </div>
+
+  <button class="btn btn-primary" id="btn-floor-complete" style="display:none;">Floor Complete</button>
+  <div class="spacer"></div>
+</div>
+
+<!-- ── STATION MODAL (FULL SCREEN) ── -->
+<div id="modal-station" class="modal-fullscreen">
+  <div class="modal-header">
+    <h2>New Station</h2>
+    <button class="modal-close" onclick="closeStationModal()">✕</button>
+  </div>
+
+  <div class="modal-body">
+    <div class="sec-label">Station Details</div>
+
+    <div class="fgroup">
+      <label class="flabel">Station Name</label>
+      <input type="text" id="station-name" placeholder="e.g., Kitchen, Cafeteria West">
+      <p class="text-small text-danger" id="station-name-error" style="margin-top:4px;display:none;"></p>
+    </div>
+
+    <div class="sec-label" style="margin-top:20px;">Station Photo</div>
+    <p class="text-small text-muted" style="margin-bottom:12px;">Photo of the station (required)</p>
+    <div style="display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:16px;">
+      <div class="photo-item" id="station-photo-item">
+        <span class="photo-item-label">Station</span>
+        <button class="photo-upload-btn" onclick="promptPhotoUpload('station')">📷</button>
+      </div>
+    </div>
+    <p class="text-small text-danger" id="station-photo-error" style="display:none;margin-bottom:12px;"></p>
+
+    <div class="sec-label">Bin Photos (Optional)</div>
+    <p class="text-small text-muted" style="margin-bottom:12px;">Photos of bins to identify waste streams</p>
+    <div class="photo-grid" id="bin-photo-grid">
+      <!-- Populated by JS -->
+    </div>
+    <button class="btn btn-secondary btn-small" onclick="addBinPhotoSlot()" style="width:100%;margin-bottom:16px;">+ Add Bin Photo</button>
+
+    <div class="sec-label">Waste Streams</div>
+    <p class="text-small text-muted" style="margin-bottom:12px;">Select the waste streams present at this station</p>
+    <div class="checkbox-group" id="station-streams-group">
+      <!-- Populated by JS -->
+    </div>
+    <p class="text-small text-danger" id="station-streams-error" style="display:none;margin-top:8px;"></p>
+  </div>
+
+  <div class="modal-footer">
+    <button class="btn btn-secondary" onclick="closeStationModal()" style="flex:1;">Cancel</button>
+    <button class="btn btn-primary" onclick="prepareStationForPlacement()" style="flex:1;">Save & Place</button>
+  </div>
+</div>
+
+<!-- ── REVIEW SCREEN ── -->
+<div id="s-review" class="screen">
+  <div class="sec-label">Audit Summary</div>
+
+  <div class="card">
+    <div class="fgroup">
+      <label class="flabel">Building</label>
+      <p style="font-size:14px;font-weight:600;" id="review-building">-</p>
+    </div>
+    <div class="fgroup">
+      <label class="flabel">Total Stations</label>
+      <p style="font-size:14px;font-weight:600;" id="review-station-count">0</p>
+    </div>
+  </div>
+
+  <div id="review-floors">
+    <!-- Populated by JS -->
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+    <button class="btn btn-secondary" onclick="downloadZipOnly()">📥 Download</button>
+    <button class="btn btn-primary" onclick="sendExportEmail()">📤 Email & Download</button>
+  </div>
+  <div class="spacer"></div>
+</div>
+
+<!-- ── MODALS ── -->
+
+<!-- Floor Complete Confirmation -->
+<div id="modal-floor-complete" class="modal">
+  <div class="modal-content">
+    <h2 style="margin-bottom:12px;">Floor Complete?</h2>
+    <p class="text-small text-muted" style="margin-bottom:20px;">You can still add more stations or edit existing ones later.</p>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-secondary" onclick="closeModal('modal-floor-complete')" style="flex:1;">No, Keep Editing</button>
+      <button class="btn btn-primary" onclick="confirmFloorComplete()" style="flex:1;">Yes, Next Floor</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="modal-delete-confirm" class="modal">
+  <div class="modal-content">
+    <h2 style="margin-bottom:12px;">Delete Station?</h2>
+    <p class="text-small text-muted" style="margin-bottom:20px;">This action cannot be undone. The station and all its photos will be removed.</p>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-secondary" onclick="closeModal('modal-delete-confirm')" style="flex:1;">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmDelete()" style="flex:1;">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── EMAIL CONFIGURATION ──
+  // TODO: Fill in your EmailJS credentials from https://www.emailjs.com/
+  const EMAIL_CONFIG = {
+    // Get from: https://www.emailjs.com/ → Dashboard → Account → API Keys
+    PUBLIC_KEY: 'YOUR_EMAILJS_PUBLIC_KEY_HERE',
+
+    // Get from: https://www.emailjs.com/ → Services → (your service)
+    SERVICE_ID: 'YOUR_SERVICE_ID_HERE',
+
+    // Get from: https://www.emailjs.com/ → Email Templates → (your template)
+    TEMPLATE_ID: 'YOUR_TEMPLATE_ID_HERE',
+
+    // Recipient email
+    TO_EMAIL: 'support@spare-it.com'
+  };
+
+  // ── CONSTANTS ──
+  const WASTE_STREAMS = [
+    'Trash',
+    'Compost',
+    'Mixed Recycling',
+    'Paper/Cardboard',
+    'Glass',
+    'Plastics',
+    'Metals',
+    'e-Waste',
+    'Other'
+  ];
+
+  // ── STATE ──
+  let state = {
+    audit: null,
+    currentFloorIdx: null,
+    currentStationId: null,
+    currentPhotosTemp: [],
+    currentPinX: null,
+    currentPinY: null,
+    stationPendingPlacement: null,
+    isInPlacementMode: false,
+    editingStationId: null,
+    isEditMode: false,
+    isEditPositionMode: false
+  };
+
+  // ── INDEXEDDB STORAGE ──
+  const DB_NAME = 'AuditDB';
+  const DB_VERSION = 1;
+  let dbInstance = null;
+
+  async function initIndexedDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+      request.onerror = () => {
+        console.error('[IDB] Failed to open IndexedDB');
+        reject(request.error);
+      };
+
+      request.onsuccess = () => {
+        dbInstance = request.result;
+        console.log('[IDB] IndexedDB initialized');
+        resolve(dbInstance);
+      };
+
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+
+        if (!db.objectStoreNames.contains('audits')) {
+          db.createObjectStore('audits', { keyPath: 'id' });
+          console.log('[IDB] Created "audits" store');
+        }
+
+        if (!db.objectStoreNames.contains('photos')) {
+          const photoStore = db.createObjectStore('photos', { keyPath: 'id', autoIncrement: true });
+          photoStore.createIndex('auditId', 'auditId', { unique: false });
+          console.log('[IDB] Created "photos" store');
+        }
+
+        if (!db.objectStoreNames.contains('backups')) {
+          db.createObjectStore('backups', { keyPath: 'id', autoIncrement: true });
+          console.log('[IDB] Created "backups" store');
+        }
+      };
+    });
+  }
+
+  // ── PHOTO COMPRESSION ──
+  async function compressPhoto(base64Data) {
+    console.log('[COMPRESS] Starting compression');
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        const newWidth = Math.round(img.width * 0.85);
+        const newHeight = Math.round(img.height * 0.85);
+
+        canvas.width = newWidth;
+        canvas.height = newHeight;
+        ctx.drawImage(img, 0, 0, newWidth, newHeight);
+
+        const compressed = canvas.toDataURL('image/jpeg', 0.75);
+
+        const originalSize = base64Data.length;
+        const compressedSize = compressed.length;
+        const reductionPercent = ((1 - compressedSize / originalSize) * 100).toFixed(1);
+
+        console.log(`[COMPRESS] ${formatBytes(originalSize)} → ${formatBytes(compressedSize)} (${reductionPercent}% reduction)`);
+
+        resolve({
+          dataUrl: compressed,
+          originalSize,
+          compressedSize
+        });
+      };
+
+      img.onerror = () => {
+        console.error('[COMPRESS] Failed to load image');
+        resolve({
+          dataUrl: base64Data,
+          originalSize: base64Data.length,
+          compressedSize: base64Data.length
+        });
+      };
+
+      img.src = base64Data;
+    });
+  }
+
+  // ── PHOTO STORAGE FUNCTIONS ──
+  async function savePhotoToIndexedDB(auditId, floorIdx, stationId, compressedData) {
+    if (!dbInstance) {
+      console.warn('[IDB] Database not ready, skipping photo save');
+      return;
+    }
+
+    try {
+      const db = dbInstance;
+      const tx = db.transaction(['photos'], 'readwrite');
+      const store = tx.objectStore('photos');
+
+      const photoRecord = {
+        id: 'photo_' + Date.now(),
+        auditId: auditId,
+        floorIdx: floorIdx,
+        stationId: stationId,
+        dataUrl: compressedData.dataUrl,
+        originalSize: compressedData.originalSize,
+        compressedSize: compressedData.compressedSize,
+        timestamp: new Date().toISOString(),
+        hash: generateChecksum(compressedData.dataUrl)
+      };
+
+      await new Promise((resolve, reject) => {
+        const request = store.add(photoRecord);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+
+      console.log(`[IDB] Photo saved: ${photoRecord.id}`);
+    } catch (error) {
+      console.error('[IDB] Failed to save photo:', error);
+    }
+  }
+
+  async function getPhotosFromIndexedDB(auditId) {
+    return new Promise((resolve) => {
+      if (!dbInstance) {
+        resolve([]);
+        return;
+      }
+
+      const tx = dbInstance.transaction(['photos'], 'readonly');
+      const store = tx.objectStore('photos');
+      const index = store.index('auditId');
+      const request = index.getAll(auditId);
+
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => resolve([]);
+    });
+  }
+
+  function generateChecksum(data) {
+    const str = typeof data === 'string' ? data : JSON.stringify(data);
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return Math.abs(hash).toString(16);
+  }
+
+  function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  // ── RECOVERY & BACKUP ──
+  async function recoverAuditWithPhotos() {
+    console.log('[IDB] Starting audit recovery...');
+
+    try {
+      const photosFromIDB = await getPhotosFromIndexedDB(state.audit.id);
+      console.log(`[IDB] Recovered ${photosFromIDB.length} photos`);
+
+      photosFromIDB.forEach(photoRecord => {
+        const floor = state.audit.floors[photoRecord.floorIdx];
+        if (floor) {
+          const station = floor.stations.find(s => s.id === photoRecord.stationId);
+          if (station) {
+            if (!station.photos.find(p => p.id === photoRecord.id)) {
+              station.photos.push({
+                id: photoRecord.id,
+                dataUrl: photoRecord.dataUrl,
+                timestamp: photoRecord.timestamp
+              });
+            }
+          }
+        }
+      });
+    } catch (error) {
+      console.error('[IDB] Recovery failed:', error);
+    }
+  }
+
+  let periodicBackupInterval = null;
+
+  function startPeriodicBackup(intervalMs = 120000) {
+    console.log('[IDB] Starting periodic backup every 2 minutes');
+
+    periodicBackupInterval = setInterval(async () => {
+      await backupAuditToIndexedDB('periodic');
+    }, intervalMs);
+  }
+
+  function stopPeriodicBackup() {
+    if (periodicBackupInterval) {
+      clearInterval(periodicBackupInterval);
+      console.log('[IDB] Periodic backup stopped');
+    }
+  }
+
+  async function backupAuditToIndexedDB(backupType = 'periodic') {
+    if (!dbInstance || !state.audit) return;
+
+    try {
+      const db = dbInstance;
+      const tx = db.transaction(['backups'], 'readwrite');
+      const backupStore = tx.objectStore('backups');
+
+      const backupRecord = {
+        auditId: state.audit.id,
+        type: backupType,
+        data: JSON.parse(JSON.stringify(state.audit)),
+        timestamp: new Date().toISOString(),
+        status: 'complete',
+        hash: generateChecksum(state.audit)
+      };
+
+      await new Promise((resolve, reject) => {
+        const request = backupStore.add(backupRecord);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+
+      console.log(`[IDB] Backup saved: ${backupType}`);
+    } catch (error) {
+      console.error('[IDB] Backup failed:', error);
+    }
+  }
+
+  // ── EMAILJS INITIALIZATION ──
+  function initEmailJS() {
+    try {
+      if (EMAIL_CONFIG.PUBLIC_KEY === 'YOUR_EMAILJS_PUBLIC_KEY_HERE') {
+        console.warn('[EMAIL] EmailJS not configured - using placeholder credentials');
+        console.warn('[EMAIL] To enable email export, update EMAIL_CONFIG at top of script');
+      } else {
+        emailjs.init(EMAIL_CONFIG.PUBLIC_KEY);
+        console.log('[EMAIL] EmailJS initialized with credentials');
+      }
+    } catch (error) {
+      console.error('[EMAIL] EmailJS initialization failed:', error);
+    }
+  }
+
+  // ── EXPORT FUNCTIONS ──
+  function generateCSV() {
+    const audit = state.audit;
+    let csv = '';
+
+    // Header section with pre-populated data
+    csv += `# BUILDING SUMMARY\n`;
+    csv += `# Building Name,${audit.buildingName},Address,${audit.buildingAddress},Floors,${audit.floors.length},Auditor,${audit.assessorName}\n`;
+    csv += `# Visit Date,${new Date().toISOString().split('T')[0]},Waste Streams,"${audit.wasteStreams.join(', ')}"\n`;
+    csv += `#\n`;
+
+    // Column headers
+    csv += `Building Name,Floor,Station,Pin X %,Pin Y %,Stream,Bin ID,Photo References\n`;
+
+    // Data rows - one row per station-stream combination
+    audit.floors.forEach((floor, floorIdx) => {
+      floor.stations.forEach((station, stationIdx) => {
+        const photoFilenames = station.photos
+          .map((p, i) => `audit_${audit.id}_Floor${floorIdx + 1}_${station.name}_photo${i + 1}_${new Date().toISOString().split('T')[0]}.jpg`)
+          .join('; ');
+
+        audit.wasteStreams.forEach((stream, streamIdx) => {
+          const binId = `BIN-${floorIdx + 1}-${station.name}-${streamIdx + 1}`;
+          csv += `"${audit.buildingName}","${floor.name}","${station.name}",${station.pinX.toFixed(2)},${station.pinY.toFixed(2)},"${stream}","${binId}","${photoFilenames}"\n`;
+        });
+      });
+    });
+
+    console.log('[EXPORT] CSV generated');
+    return csv;
+  }
+
+  function generateExcel() {
+    const audit = state.audit;
+    const data = [];
+
+    // Header section with building info
+    data.push(['BUILDING SUMMARY']);
+    data.push(['Building Name', audit.buildingName, 'Address', audit.buildingAddress, 'Floors', audit.floors.length]);
+    data.push(['Auditor', audit.assessorName, 'Visit Date', new Date().toISOString().split('T')[0], 'Waste Streams', audit.wasteStreams.join(', ')]);
+    data.push([]); // Spacing
+
+    // Column headers
+    data.push(['Building Name', 'Floor', 'Station', 'Pin X %', 'Pin Y %', 'Stream', 'Bin ID', 'Photo References']);
+
+    // Data rows
+    audit.floors.forEach((floor, floorIdx) => {
+      floor.stations.forEach((station) => {
+        const photoFilenames = station.photos
+          .map((p, i) => `audit_${audit.id}_Floor${floorIdx + 1}_${station.name}_photo${i + 1}_${new Date().toISOString().split('T')[0]}.jpg`)
+          .join('; ');
+
+        audit.wasteStreams.forEach((stream, streamIdx) => {
+          const binId = `BIN-${floorIdx + 1}-${station.name}-${streamIdx + 1}`;
+          data.push([
+            audit.buildingName,
+            floor.name,
+            station.name,
+            station.pinX.toFixed(2),
+            station.pinY.toFixed(2),
+            stream,
+            binId,
+            photoFilenames
+          ]);
+        });
+      });
+    });
+
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.aoa_to_sheet(data);
+
+    // Set column widths
+    worksheet['!cols'] = [
+      { wch: 20 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 40 }
+    ];
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Audit Data');
+    console.log('[EXPORT] Excel generated');
+    return workbook;
+  }
+
+  async function createExportZip() {
+    const audit = state.audit;
+    const dateStamp = new Date().toISOString().split('T')[0];
+
+    try {
+      const zip = new JSZip();
+
+      // 1. Add CSV
+      const csv = generateCSV();
+      zip.file(`audit_${audit.id}_site_visit_${dateStamp}.csv`, csv);
+      console.log('[ZIP] Added CSV');
+
+      // 2. Add Excel
+      const excel = generateExcel();
+      const excelData = XLSX.write(excel, { type: 'arraybuffer' });
+      zip.file(`audit_${audit.id}_site_visit_${dateStamp}.xlsx`, excelData);
+      console.log('[ZIP] Added Excel');
+
+      // 3. Add photos from IndexedDB
+      const photos = await getPhotosFromIndexedDB(audit.id);
+      photos.forEach((photo, index) => {
+        const base64Data = photo.dataUrl.split(',')[1];
+        const photoPath = `photos/floor${photo.floorIdx + 1}/${photo.stationId}/audit_${audit.id}_Floor${photo.floorIdx + 1}_photo${index + 1}_${dateStamp}.jpg`;
+        zip.file(photoPath, base64Data, { base64: true });
+      });
+      console.log(`[ZIP] Added ${photos.length} photos`);
+
+      // 4. Add floor plan images
+      audit.floors.forEach((floor, idx) => {
+        if (floor.floorPlanImage) {
+          const base64Data = floor.floorPlanImage.split(',')[1];
+          zip.file(`floorplans/Floor${idx + 1}_plan_${dateStamp}.jpg`, base64Data, { base64: true });
+        }
+      });
+      console.log('[ZIP] Added floor plans');
+
+      // 5. Generate ZIP
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      console.log(`[ZIP] Created: ${formatBytes(zipBlob.size)}`);
+
+      return zipBlob;
+    } catch (error) {
+      console.error('[ZIP] Creation failed:', error);
+      throw error;
+    }
+  }
+
+  async function downloadZipOnly() {
+    console.log('[EXPORT] Starting download...');
+
+    try {
+      showToast('📥 Preparing export...');
+
+      // Create ZIP
+      const zipBlob = await createExportZip();
+      const audit = state.audit;
+      const dateStamp = new Date().toISOString().split('T')[0];
+
+      // Download ZIP
+      const url = URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `audit_${audit.id}_${dateStamp}.zip`;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      showToast(`✓ Downloaded: ${formatBytes(zipBlob.size)}`);
+      console.log('[EXPORT] Download complete');
+    } catch (error) {
+      console.error('[EXPORT] Failed:', error);
+      showToast('❌ Export failed: ' + error.message);
+    }
+  }
+
+  async function sendExportEmail() {
+    console.log('[EXPORT] Starting export and email...');
+
+    // Check if EmailJS is configured
+    if (EMAIL_CONFIG.PUBLIC_KEY === 'YOUR_EMAILJS_PUBLIC_KEY_HERE' ||
+        EMAIL_CONFIG.SERVICE_ID === 'YOUR_SERVICE_ID_HERE' ||
+        EMAIL_CONFIG.TEMPLATE_ID === 'YOUR_TEMPLATE_ID_HERE') {
+      showToast('⚠️ EmailJS not configured - downloading only');
+      return downloadZipOnly();
+    }
+
+    try {
+      showToast('📤 Preparing export...');
+
+      // Create ZIP
+      const zipBlob = await createExportZip();
+      const audit = state.audit;
+      const dateStamp = new Date().toISOString().split('T')[0];
+
+      // Prepare email parameters
+      const emailParams = {
+        to_email: EMAIL_CONFIG.TO_EMAIL,
+        building_name: audit.buildingName,
+        auditor_name: audit.assessorName,
+        export_date: dateStamp,
+        audit_id: audit.id
+      };
+
+      // Send email
+      showToast('📧 Sending email...');
+      await emailjs.send(EMAIL_CONFIG.SERVICE_ID, EMAIL_CONFIG.TEMPLATE_ID, emailParams);
+      console.log('[EMAIL] Sent successfully to ' + EMAIL_CONFIG.TO_EMAIL);
+
+      // Download ZIP locally too
+      const url = URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `audit_${audit.id}_${dateStamp}.zip`;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      showToast('✓ Export sent to ' + EMAIL_CONFIG.TO_EMAIL + ' and downloaded');
+      console.log('[EXPORT] Complete');
+    } catch (error) {
+      console.error('[EXPORT] Failed:', error);
+      showToast('❌ Export failed: ' + error.message);
+    }
+  }
+
+  // ── INITIALIZATION ──
+  async function init() {
+    console.log('[APP] Starting application...');
+
+    try {
+      // Initialize IndexedDB
+      await initIndexedDB();
+      // Initialize EmailJS
+      initEmailJS();
+    } catch (error) {
+      console.error('[APP] Initialization failed:', error);
+    }
+
+    loadState();
+
+    // Recover photos from IndexedDB if audit exists
+    if (state.audit) {
+      await recoverAuditWithPhotos();
+    }
+
+    setupWasteStreamCheckboxes();
+    setupEventListeners();
+
+    // Start periodic backup
+    startPeriodicBackup(120000); // 2 minutes
+
+    if (!state.audit) showScreen('s-home');
+    else showScreen('s-floors');
+
+    console.log('[APP] Initialization complete');
+  }
+
+  function setupWasteStreamCheckboxes() {
+    const container = document.getElementById('wasteStreamsGroup');
+    container.innerHTML = WASTE_STREAMS.map(stream => `
+      <label class="checkbox-item">
+        <input type="checkbox" name="waste-stream" value="${stream}">
+        <span>${stream}</span>
+      </label>
+    `).join('');
+  }
+
+  function setupEventListeners() {
+    console.log('[SETUP] Starting event listener setup...');
+
+    const btnStart = document.getElementById('btn-start');
+    const hdrBack = document.getElementById('hdr-back');
+    const btnUploadPlan = document.getElementById('btn-upload-plan');
+    const floorPlanInput = document.getElementById('floorPlanInput');
+    const btnFloorComplete = document.getElementById('btn-floor-complete');
+    const btnDownloadZip = document.getElementById('btn-download-zip');
+    const floorPlanCanvas = document.getElementById('floorPlanCanvas');
+
+    console.log('[SETUP] Elements found:', {
+      btnStart: !!btnStart,
+      hdrBack: !!hdrBack,
+      btnUploadPlan: !!btnUploadPlan,
+      floorPlanInput: !!floorPlanInput,
+      btnFloorComplete: !!btnFloorComplete,
+      btnDownloadZip: !!btnDownloadZip,
+      floorPlanCanvas: !!floorPlanCanvas
+    });
+
+    if (btnStart) btnStart.addEventListener('click', startAudit);
+    if (hdrBack) hdrBack.addEventListener('click', goBack);
+
+    if (btnUploadPlan) {
+      btnUploadPlan.addEventListener('click', () => {
+        console.log('[UPLOAD] Button clicked');
+        if (floorPlanInput) {
+          floorPlanInput.click();
+        } else {
+          console.error('[UPLOAD] File input not found!');
+        }
+      });
+    } else {
+      console.error('[SETUP] Upload plan button not found!');
+    }
+
+    if (floorPlanInput) {
+      floorPlanInput.addEventListener('change', (e) => {
+        console.log('[UPLOAD] File change event fired', e.target.files);
+        handleFloorPlanUpload(e);
+      });
+    } else {
+      console.error('[SETUP] Floor plan input not found!');
+    }
+
+    if (btnFloorComplete) {
+      btnFloorComplete.addEventListener('click', () =>
+        openModal('modal-floor-complete')
+      );
+    }
+
+    if (btnDownloadZip) {
+      btnDownloadZip.addEventListener('click', downloadAudit);
+    }
+
+    // Floor plan click handler for pin placement
+    if (floorPlanCanvas) {
+      floorPlanCanvas.addEventListener('click', handleFloorPlanClick);
+    }
+
+    console.log('[SETUP] Event listener setup complete');
+  }
+
+  // ── STORAGE ──
+  function loadState() {
+    const saved = localStorage.getItem('auditState');
+    if (saved) {
+      try {
+        state.audit = JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to load state:', e);
+        state.audit = null;
+      }
+    }
+  }
+
+  function saveState() {
+    if (state.audit) {
+      const auditForStorage = JSON.parse(JSON.stringify(state.audit));
+
+      auditForStorage.floors.forEach(floor => {
+        floor.floorPlanImage = null;
+        floor.stations.forEach(station => {
+          station.photos = station.photos.map(photo => ({
+            id: photo.id,
+            type: photo.type,
+            binNumber: photo.binNumber,
+            timestamp: photo.timestamp
+          }));
+        });
+      });
+
+      try {
+        localStorage.setItem('auditState', JSON.stringify(auditForStorage));
+        console.log('[STORAGE] State saved (photos kept in memory)');
+      } catch (e) {
+        console.error('[STORAGE] Failed to save state:', e);
+      }
+    }
+  }
+
+  // ── SCREENS ──
+  function showScreen(screenId) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(screenId).classList.add('active');
+
+    const hdrBack = document.getElementById('hdr-back');
+    const hdrTitle = document.getElementById('hdr-title');
+    const hdrSub = document.getElementById('hdr-sub');
+
+    hdrBack.style.display = screenId === 's-home' ? 'none' : 'flex';
+
+    if (screenId === 's-home') {
+      hdrTitle.textContent = 'Spare-it';
+      hdrSub.textContent = 'Site Audit';
+    } else if (screenId === 's-floors') {
+      hdrTitle.textContent = state.audit.buildingName || 'Audit';
+      hdrSub.textContent = 'Select Floor';
+      renderFloorsScreen();
+    } else if (screenId === 's-floor') {
+      const floor = state.audit.floors[state.currentFloorIdx];
+      hdrTitle.textContent = floor.name;
+      hdrSub.textContent = `${floor.stations.length} station${floor.stations.length !== 1 ? 's' : ''}`;
+      renderFloorDetail();
+    } else if (screenId === 's-review') {
+      hdrTitle.textContent = state.audit.buildingName;
+      hdrSub.textContent = 'Review Audit';
+      renderReview();
+    }
+  }
+
+  function goBack() {
+    if (state.isEditPositionMode) {
+      cancelEditPosition();
+      return;
+    }
+
+    if (state.isInPlacementMode) {
+      state.isInPlacementMode = false;
+      state.stationPendingPlacement = null;
+      document.getElementById('placement-instruction').style.display = 'none';
+      renderFloorDetail();
+      return;
+    }
+
+    if (state.currentStationId) {
+      closeStationModal();
+      return;
+    }
+
+    const currentScreen = document.querySelector('.screen.active').id;
+
+    if (currentScreen === 's-floor') {
+      showScreen('s-floors');
+    } else if (currentScreen === 's-floors') {
+      showScreen('s-home');
+    } else if (currentScreen === 's-review') {
+      showScreen('s-floors');
+    }
+  }
+
+  // ── AUDIT START ──
+  function startAudit() {
+    const buildingName = document.getElementById('buildingName').value.trim();
+    const buildingAddress = document.getElementById('buildingAddress').value.trim();
+    const occupancyType = document.getElementById('occupancyType').value;
+    const assessorName = document.getElementById('assessorName').value.trim();
+    const floorCount = parseInt(document.getElementById('floorCount').value) || 1;
+
+    if (!buildingName || !buildingAddress || !occupancyType || !assessorName) {
+      alert('Please fill in all building details');
+      return;
+    }
+
+    const selectedStreams = Array.from(document.querySelectorAll('input[name="waste-stream"]:checked'))
+      .map(cb => cb.value);
+
+    if (selectedStreams.length === 0) {
+      alert('Please select at least one waste stream');
+      return;
+    }
+
+    state.audit = {
+      id: 'audit-' + Date.now(),
+      buildingName,
+      buildingAddress,
+      occupancyType,
+      assessorName,
+      wasteStreams: selectedStreams,
+      floors: Array.from({length: floorCount}, (_, i) => ({
+        id: 'floor-' + i,
+        name: `Floor ${i + 1}`,
+        estimatedStations: 0,
+        floorPlanImage: null,
+        stations: [],
+        isComplete: false
+      })),
+      createdAt: new Date().toISOString()
+    };
+
+    state.currentFloorIdx = 0;
+    saveState();
+    showScreen('s-floors');
+  }
+
+  // ── FLOORS ──
+  function renderFloorsScreen() {
+    const list = document.getElementById('floors-list');
+    list.innerHTML = state.audit.floors.map((floor, idx) => `
+      <div class="card" style="cursor:pointer;" onclick="selectFloor(${idx})">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <h3 style="font-size:16px;font-weight:700;margin-bottom:4px;">${floor.name}</h3>
+            <p class="text-small text-muted">${floor.stations.length} station${floor.stations.length !== 1 ? 's' : ''}</p>
+          </div>
+          <div style="text-align:right;">
+            ${floor.isComplete ? '<span style="color:var(--green);font-weight:700;">✓ Complete</span>' : '<span style="color:var(--muted);font-size:20px;">→</span>'}
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function selectFloor(idx) {
+    state.currentFloorIdx = idx;
+    showScreen('s-floor');
+  }
+
+  // ── FLOOR DETAIL ──
+  function renderFloorDetail() {
+    const floor = state.audit.floors[state.currentFloorIdx];
+    console.log('[RENDER] renderFloorDetail called for floor:', floor.name);
+
+    document.getElementById('floor-label').textContent = floor.name;
+
+    const canvas = document.getElementById('floorPlanCanvas');
+    const wrapper = document.getElementById('floorPlanWrapper');
+
+    console.log('[RENDER] Canvas element:', !!canvas);
+    console.log('[RENDER] Floor plan image exists:', !!floor.floorPlanImage);
+
+    if (floor.floorPlanImage) {
+      console.log('[RENDER] Setting background image');
+      canvas.style.backgroundImage = `url(${floor.floorPlanImage})`;
+      canvas.onclick = handleFloorPlanClick;
+    } else {
+      console.log('[RENDER] No floor plan image - clearing background');
+      canvas.style.backgroundImage = 'none';
+      canvas.onclick = null;
+    }
+
+    renderPins();
+    renderStationsList();
+
+    const btnComplete = document.getElementById('btn-floor-complete');
+    btnComplete.style.display = floor.stations.length > 0 ? 'block' : 'none';
+
+    const instruction = document.getElementById('placement-instruction');
+    // Show instruction during placement mode OR edit position mode
+    const shouldShowInstruction = state.isInPlacementMode || state.isEditPositionMode;
+    instruction.style.display = shouldShowInstruction ? 'block' : 'none';
+  }
+
+  function handleFloorPlanClick(e) {
+    console.log('[CLICK] Floor plan clicked');
+    console.log('[CLICK] isInPlacementMode:', state.isInPlacementMode);
+    console.log('[CLICK] isEditPositionMode:', state.isEditPositionMode);
+    console.log('[CLICK] stationPendingPlacement:', !!state.stationPendingPlacement);
+
+    const canvas = document.getElementById('floorPlanCanvas');
+    const rect = canvas.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+    console.log('[CLICK] Click coordinates:', { x: x.toFixed(1), y: y.toFixed(1) });
+
+    if (state.isInPlacementMode && state.stationPendingPlacement) {
+      console.log('[CLICK] Creating station with coordinates:', { x, y });
+      createStation(x, y);
+      return;
+    } else if (state.isEditPositionMode && state.stationPendingPlacement) {
+      console.log('[CLICK] Edit mode: Updating pending station with coordinates:', { x, y });
+      console.log('[CLICK] Old pending position:', { pinX: state.stationPendingPlacement.pinX, pinY: state.stationPendingPlacement.pinY });
+      state.stationPendingPlacement.pinX = x;
+      state.stationPendingPlacement.pinY = y;
+      console.log('[CLICK] New pending position:', { pinX: state.stationPendingPlacement.pinX, pinY: state.stationPendingPlacement.pinY });
+      renderFloorDetail();
+      showToast('📍 Position updated - tap Save to confirm');
+      return;
+    } else {
+      console.log('[CLICK] Not in placement/edit mode or no pending station');
+    }
+  }
+
+  function renderPins() {
+    const floor = state.audit.floors[state.currentFloorIdx];
+    const canvas = document.getElementById('floorPlanCanvas');
+    const container = canvas.parentElement;
+    const pinsContainer = container.querySelector('#pins-container');
+
+    if (!pinsContainer) return;
+
+    pinsContainer.innerHTML = '';
+
+    floor.stations.forEach((station, idx) => {
+      if (station.pinX !== undefined && station.pinY !== undefined) {
+        const pinEl = document.createElement('div');
+        pinEl.className = 'pin';
+        pinEl.id = 'pin-' + station.id;
+        pinEl.textContent = String.fromCharCode(65 + idx);
+        pinEl.style.left = station.pinX + '%';
+        pinEl.style.top = station.pinY + '%';
+        pinEl.style.position = 'absolute';
+
+        if (state.isEditPositionMode && state.editingStationId === station.id) {
+          pinEl.style.cursor = 'move';
+          pinEl.style.opacity = '1';
+          pinEl.style.boxShadow = '0 0 0 4px rgba(52,168,83,0.4)';
+        } else {
+          pinEl.style.cursor = 'default';
+          pinEl.style.pointerEvents = 'auto';
+        }
+
+        pinsContainer.appendChild(pinEl);
+      }
+    });
+
+    if (state.stationPendingPlacement && state.stationPendingPlacement.pinX !== undefined) {
+      const pendingPin = document.createElement('div');
+      pendingPin.className = 'pin';
+      pendingPin.id = 'pin-pending';
+      pendingPin.textContent = '◎';
+      pendingPin.style.left = state.stationPendingPlacement.pinX + '%';
+      pendingPin.style.top = state.stationPendingPlacement.pinY + '%';
+      pendingPin.style.position = 'absolute';
+      pendingPin.style.backgroundColor = 'var(--yellow)';
+      pendingPin.style.borderColor = 'var(--dark)';
+      pendingPin.style.cursor = 'crosshair';
+
+      pinsContainer.appendChild(pendingPin);
+    }
+  }
+
+  function handleFloorPlanUpload(e) {
+    console.log('[UPLOAD] handleFloorPlanUpload called', e);
+    const file = e.target.files[0];
+    console.log('[UPLOAD] File selected:', file);
+
+    if (!file) {
+      console.error('[UPLOAD] No file selected');
+      return;
+    }
+
+    console.log('[UPLOAD] Reading file:', file.name, file.size, file.type);
+    const reader = new FileReader();
+
+    reader.onload = (ev) => {
+      console.log('[UPLOAD] File read complete, size:', ev.target.result.length);
+      const floor = state.audit.floors[state.currentFloorIdx];
+      console.log('[UPLOAD] Setting floor plan image for floor:', floor.name);
+      floor.floorPlanImage = ev.target.result;
+      saveState();
+      console.log('[UPLOAD] State saved, calling renderFloorDetail');
+      renderFloorDetail();
+      console.log('[UPLOAD] Floor detail rendered');
+    };
+
+    reader.onerror = (error) => {
+      console.error('[UPLOAD] FileReader error:', error);
+    };
+
+    reader.readAsDataURL(file);
+    console.log('[UPLOAD] readAsDataURL called');
+  }
+
+  // ── STATIONS ──
+  function renderStationsList() {
+    const floor = state.audit.floors[state.currentFloorIdx];
+    const list = document.getElementById('stations-list');
+
+    if (floor.stations.length === 0) {
+      list.innerHTML = '<p class="text-muted text-center text-small" style="padding:20px 0;">No stations yet. Click on the floor plan to add one.</p>';
+      return;
+    }
+
+    list.innerHTML = floor.stations.map(station => {
+      const thumb = station.photos && station.photos[0] ? station.photos[0].dataUrl : '';
+      const pendingBadge = station.isPending ? '<span style="display:inline-block;background:var(--yellow);color:var(--dark);padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;margin-left:6px;">📍 Awaiting placement</span>' : '';
+      return `
+        <div class="station-item" style="${station.isPending ? 'opacity:0.85;' : ''}">
+          ${thumb ? `<div class="station-thumb" style="background-image:url(${thumb})"></div>` : '<div class="station-thumb"></div>'}
+          <div class="station-content">
+            <div class="station-name" style="display:flex;align-items:center;">
+              ${station.name}
+              ${pendingBadge}
+            </div>
+            <div class="station-streams">
+              ${station.wasteStreams.map(s => `<span class="stream-tag">${s}</span>`).join('')}
+            </div>
+            ${station.isPending ? `
+              <button class="btn btn-small btn-primary" style="margin-top:8px;width:100%;" onclick="startPlacingPin('${station.id}')">
+                📍 Place Pin on Floor Plan
+              </button>
+            ` : `
+              <button class="btn btn-small btn-secondary" style="margin-top:8px;width:100%;margin-bottom:6px;" onclick="startEditingPosition('${station.id}')">
+                ✏️ Edit Position
+              </button>
+            `}
+          </div>
+          <div class="station-actions">
+            <button onclick="openEditStationModal('${station.id}')" title="Edit station">✎</button>
+            <button onclick="openDeleteConfirmModal('${station.id}')" title="Delete station">🗑</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function openAddStationModal() {
+    state.isEditMode = false;
+    state.editingStationId = null;
+    state.currentStationId = 'temp-' + Date.now();
+    state.currentPhotosTemp = {
+      stationPhoto: null,
+      binPhotos: []
+    };
+    document.getElementById('station-name').value = '';
+    document.getElementById('station-name-error').style.display = 'none';
+    document.getElementById('station-photo-error').style.display = 'none';
+    document.getElementById('station-streams-error').style.display = 'none';
+
+    document.querySelector('#modal-station .modal-header h2').textContent = 'New Station';
+
+    const photoItem = document.getElementById('station-photo-item');
+    photoItem.innerHTML = '<span class="photo-item-label">Station</span><button class="photo-upload-btn" onclick="promptPhotoUpload(\'station\')">📷</button>';
+    photoItem.classList.remove('filled');
+    photoItem.style.backgroundImage = '';
+
+    document.getElementById('bin-photo-grid').innerHTML = '';
+
+    const streamGroup = document.getElementById('station-streams-group');
+    streamGroup.innerHTML = state.audit.wasteStreams.map(stream => `
+      <label class="checkbox-item">
+        <input type="checkbox" name="station-stream" value="${stream}">
+        <span>${stream}</span>
+      </label>
+    `).join('');
+
+    document.getElementById('modal-station').classList.add('active');
+  }
+
+  function openEditStationModal(stationId) {
+    const floor = state.audit.floors[state.currentFloorIdx];
+    const station = floor.stations.find(s => s.id === stationId);
+    if (!station) return;
+
+    state.isEditMode = true;
+    state.editingStationId = stationId;
+    state.currentStationId = stationId;
+    state.currentPhotosTemp = {
+      stationPhoto: station.photos.find(p => p.type === 'station' || p === station.photos[0]),
+      binPhotos: station.photos.filter(p => p.type === 'bin')
+    };
+
+    document.querySelector('#modal-station .modal-header h2').textContent = 'Edit Station';
+
+    document.getElementById('station-name').value = station.name;
+    document.getElementById('station-name-error').style.display = 'none';
+    document.getElementById('station-photo-error').style.display = 'none';
+    document.getElementById('station-streams-error').style.display = 'none';
+
+    const photoItem = document.getElementById('station-photo-item');
+    if (state.currentPhotosTemp.stationPhoto) {
+      photoItem.style.backgroundImage = `url(${state.currentPhotosTemp.stationPhoto.dataUrl})`;
+      photoItem.classList.add('filled');
+      photoItem.innerHTML = '<span class="photo-item-label">Station</span><button class="photo-upload-btn" onclick="promptPhotoUpload(\'station\')"></button>';
+    } else {
+      photoItem.style.backgroundImage = '';
+      photoItem.classList.remove('filled');
+      photoItem.innerHTML = '<span class="photo-item-label">Station</span><button class="photo-upload-btn" onclick="promptPhotoUpload(\'station\')">📷</button>';
+    }
+
+    renderBinPhotoGrid();
+
+    const streamGroup = document.getElementById('station-streams-group');
+    streamGroup.innerHTML = state.audit.wasteStreams.map(stream => {
+      const isChecked = station.wasteStreams.includes(stream);
+      return `
+        <label class="checkbox-item">
+          <input type="checkbox" name="station-stream" value="${stream}" ${isChecked ? 'checked' : ''}>
+          <span>${stream}</span>
+        </label>
+      `;
+    }).join('');
+
+    document.getElementById('modal-station').classList.add('active');
+  }
+
+  function closeStationModal() {
+    state.currentStationId = null;
+    state.currentPhotosTemp = [];
+    state.currentPinX = null;
+    state.currentPinY = null;
+    state.stationPendingPlacement = null;
+    state.isInPlacementMode = false;
+    state.isEditMode = false;
+    state.editingStationId = null;
+    document.getElementById('modal-station').classList.remove('active');
+  }
+
+  function renderBinPhotoGrid() {
+    const grid = document.getElementById('bin-photo-grid');
+    grid.innerHTML = (state.currentPhotosTemp.binPhotos || []).map((photo, idx) => `
+      <div class="photo-item filled" style="background-image:url(${photo.dataUrl})">
+        <span class="photo-item-label">Bin ${idx + 1}</span>
+        <button class="photo-item-remove" onclick="removeBinPhoto(${idx})">×</button>
+      </div>
+    `).join('');
+  }
+
+  function addBinPhotoSlot() {
+    if (!state.currentPhotosTemp.binPhotos) {
+      state.currentPhotosTemp.binPhotos = [];
+    }
+    promptPhotoUpload('bin');
+  }
+
+  function removeBinPhoto(idx) {
+    if (state.currentPhotosTemp.binPhotos) {
+      state.currentPhotosTemp.binPhotos.splice(idx, 1);
+      renderBinPhotoGrid();
+    }
+  }
+
+  function promptPhotoUpload(type) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        try {
+          // Compress photo
+          const compressed = await compressPhoto(ev.target.result);
+
+          // Immediately save to IndexedDB (instant backup)
+          if (state.audit && state.currentFloorIdx !== null) {
+            const stationId = state.currentStationId || 'temp_' + Date.now();
+            await savePhotoToIndexedDB(state.audit.id, state.currentFloorIdx, stationId, compressed);
+            console.log('[PHOTO] Backed up to IndexedDB');
+          }
+
+          // Store compressed photo in memory
+          if (type === 'station') {
+            state.currentPhotosTemp.stationPhoto = {
+              dataUrl: compressed.dataUrl,
+              timestamp: new Date().toISOString(),
+              originalSize: compressed.originalSize,
+              compressedSize: compressed.compressedSize
+            };
+            const photoItem = document.getElementById('station-photo-item');
+            photoItem.style.backgroundImage = `url(${compressed.dataUrl})`;
+            photoItem.classList.add('filled');
+            document.getElementById('station-photo-error').style.display = 'none';
+            showToast('✓ Photo saved');
+          } else if (type === 'bin') {
+            if (!state.currentPhotosTemp.binPhotos) {
+              state.currentPhotosTemp.binPhotos = [];
+            }
+            state.currentPhotosTemp.binPhotos.push({
+              dataUrl: compressed.dataUrl,
+              timestamp: new Date().toISOString(),
+              originalSize: compressed.originalSize,
+              compressedSize: compressed.compressedSize
+            });
+            renderBinPhotoGrid();
+            showToast('✓ Bin photo saved');
+          }
+        } catch (error) {
+          console.error('[PHOTO] Upload failed:', error);
+          showToast('❌ Photo upload failed');
+        }
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  }
+
+  function prepareStationForPlacement() {
+    const name = document.getElementById('station-name').value.trim();
+    const floor = state.audit.floors[state.currentFloorIdx];
+    const nameErrorEl = document.getElementById('station-name-error');
+    const photoErrorEl = document.getElementById('station-photo-error');
+    const streamsErrorEl = document.getElementById('station-streams-error');
+
+    nameErrorEl.style.display = 'none';
+    photoErrorEl.style.display = 'none';
+    streamsErrorEl.style.display = 'none';
+
+    if (!name) {
+      nameErrorEl.textContent = 'Station name required';
+      nameErrorEl.style.display = 'block';
+      return;
+    }
+
+    const isDuplicate = floor.stations.some(s =>
+      s.id !== state.editingStationId &&
+      s.name.toLowerCase() === name.toLowerCase()
+    );
+    if (isDuplicate) {
+      nameErrorEl.textContent = 'Station name already exists on this floor';
+      nameErrorEl.style.display = 'block';
+      return;
+    }
+
+    if (!state.currentPhotosTemp.stationPhoto) {
+      photoErrorEl.textContent = 'Please take a photo of the station';
+      photoErrorEl.style.display = 'block';
+      return;
+    }
+
+    const streams = Array.from(document.querySelectorAll('#station-streams-group input[name="station-stream"]:checked'))
+      .map(cb => cb.value);
+
+    if (streams.length === 0) {
+      streamsErrorEl.textContent = 'Please select at least one waste stream';
+      streamsErrorEl.style.display = 'block';
+      return;
+    }
+
+    if (state.isEditMode) {
+      updateStation(name, streams);
+      return;
+    }
+
+    createPendingStation(name, streams);
+  }
+
+  function startPlacingPin(stationId) {
+    const floor = state.audit.floors[state.currentFloorIdx];
+    const station = floor.stations.find(s => s.id === stationId);
+    if (!station || !station.isPending) return;
+
+    console.log('[PLACEMENT] Starting placement for station:', station.name);
+
+    state.stationPendingPlacement = { ...station };
+    state.isInPlacementMode = true;
+    state.isEditPositionMode = false;
+
+    const container = document.querySelector('.floor-plan-container');
+    if (container) {
+      setTimeout(() => {
+        container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        console.log('[PLACEMENT] Scrolled to floor plan');
+
+        container.classList.add('highlight-pulse');
+        setTimeout(() => {
+          container.classList.remove('highlight-pulse');
+        }, 2000);
+      }, 300);
+    }
+
+    renderFloorDetail();
+    showToast(`📍 Click the floor plan to place ${station.name}`);
+  }
+
+  function startEditingPosition(stationId) {
+    const floor = state.audit.floors[state.currentFloorIdx];
+    const station = floor.stations.find(s => s.id === stationId);
+    if (!station || station.isPending) return;
+
+    console.log('[EDIT_POS] Starting edit position for station:', station.name);
+
+    state.stationPendingPlacement = { ...station };
+    state.isEditPositionMode = true;
+    state.isInPlacementMode = false;
+    state.editingStationId = stationId;
+
+    const container = document.querySelector('.floor-plan-container');
+    if (container) {
+      setTimeout(() => {
+        container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        console.log('[EDIT_POS] Scrolled to floor plan');
+
+        container.classList.add('highlight-pulse');
+        setTimeout(() => {
+          container.classList.remove('highlight-pulse');
+        }, 2000);
+      }, 300);
+    }
+
+    renderFloorDetail();
+    renderEditPositionControls();
+
+    showToast(`✏️ Reposition ${station.name}`);
+  }
+
+  function renderEditPositionControls() {
+    const instruction = document.getElementById('placement-instruction');
+    instruction.innerHTML = `
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-secondary" style="flex:1;" onclick="cancelEditPosition()">Cancel</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="saveEditPosition()">Save Position</button>
+      </div>
+    `;
+    instruction.style.display = 'block';
+  }
+
+  function cancelEditPosition() {
+    state.isEditPositionMode = false;
+    state.stationPendingPlacement = null;
+    state.editingStationId = null;
+    document.getElementById('placement-instruction').style.display = 'none';
+    renderFloorDetail();
+    showToast('✕ Edit cancelled');
+  }
+
+  function saveEditPosition() {
+    console.log('[SAVE_EDIT] Starting save edit position');
+    console.log('[SAVE_EDIT] stationPendingPlacement:', state.stationPendingPlacement);
+    console.log('[SAVE_EDIT] editingStationId:', state.editingStationId);
+
+    if (!state.stationPendingPlacement || !state.editingStationId) {
+      console.error('[SAVE_EDIT] FAILED: Missing pending placement or editing station ID');
+      showToast('❌ Error: Could not save position');
+      return;
+    }
+
+    const floor = state.audit.floors[state.currentFloorIdx];
+    const station = floor.stations.find(s => s.id === state.editingStationId);
+
+    console.log('[SAVE_EDIT] Station found:', station ? station.name : 'NOT FOUND');
+
+    if (!station) {
+      console.error('[SAVE_EDIT] FAILED: Station not found in array');
+      showToast('❌ Error: Station not found');
+      return;
+    }
+
+    console.log('[SAVE_EDIT] Old coordinates:', {
+      pinX: station.pinX ? station.pinX.toFixed(2) : null,
+      pinY: station.pinY ? station.pinY.toFixed(2) : null
+    });
+    console.log('[SAVE_EDIT] New coordinates:', {
+      pinX: state.stationPendingPlacement.pinX.toFixed(2),
+      pinY: state.stationPendingPlacement.pinY.toFixed(2)
+    });
+
+    station.pinX = state.stationPendingPlacement.pinX;
+    station.pinY = state.stationPendingPlacement.pinY;
+    station.updatedAt = new Date().toISOString();
+
+    console.log('[SAVE_EDIT] ✓ Station coordinates updated:', {
+      pinX: station.pinX.toFixed(2),
+      pinY: station.pinY.toFixed(2),
+      name: station.name,
+      id: station.id
+    });
+
+    state.isEditPositionMode = false;
+    state.stationPendingPlacement = null;
+    state.editingStationId = null;
+
+    console.log('[SAVE_EDIT] Calling saveState()...');
+    saveState();
+    console.log('[SAVE_EDIT] State saved successfully');
+
+    document.getElementById('placement-instruction').style.display = 'none';
+    renderFloorDetail();
+    showToast(`✓ ${station.name} Position Updated`);
+    console.log('[SAVE_EDIT] Complete');
+  }
+
+  function createPendingStation(name, wasteStreams) {
+    const floor = state.audit.floors[state.currentFloorIdx];
+
+    const photos = [];
+    if (state.currentPhotosTemp.stationPhoto) {
+      photos.push({
+        id: 'photo-' + Date.now(),
+        dataUrl: state.currentPhotosTemp.stationPhoto.dataUrl,
+        type: 'station',
+        timestamp: state.currentPhotosTemp.stationPhoto.timestamp
+      });
+    }
+    if (state.currentPhotosTemp.binPhotos && state.currentPhotosTemp.binPhotos.length > 0) {
+      state.currentPhotosTemp.binPhotos.forEach((bp, idx) => {
+        photos.push({
+          id: 'photo-' + Date.now() + idx,
+          dataUrl: bp.dataUrl,
+          type: 'bin',
+          binNumber: idx + 1,
+          timestamp: bp.timestamp
+        });
+      });
+    }
+
+    const station = {
+      id: 'station-' + Date.now(),
+      name,
+      wasteStreams,
+      pinX: null,
+      pinY: null,
+      photos,
+      isPending: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    floor.stations.push(station);
+    state.isInPlacementMode = true;
+    state.stationPendingPlacement = { ...station };
+
+    closeStationModal();
+    saveState();
+
+    renderFloorDetail();
+
+    showToast(`✓ ${name} Ready — Click floor plan to place pin`);
+  }
+
+  function createStation(pinX, pinY) {
+    console.log('[CREATE] createStation called with:', { pinX: pinX.toFixed(1), pinY: pinY.toFixed(1) });
+
+    if (!state.stationPendingPlacement) {
+      console.error('[CREATE] No pending station!');
+      return;
+    }
+
+    const floor = state.audit.floors[state.currentFloorIdx];
+    const pendingStation = state.stationPendingPlacement;
+
+    console.log('[CREATE] Looking for station with id:', pendingStation.id);
+    console.log('[CREATE] Floor stations:', floor.stations.map(s => ({ id: s.id, name: s.name })));
+
+    const station = floor.stations.find(s => s.id === pendingStation.id);
+    if (!station) {
+      console.error('[CREATE] Station not found in array!');
+      return;
+    }
+
+    console.log('[CREATE] Station found:', station.name);
+
+    station.pinX = pinX;
+    station.pinY = pinY;
+    station.isPending = false;
+    station.updatedAt = new Date().toISOString();
+
+    console.log('[CREATE] Updated station:', { name: station.name, pinX, pinY, isPending: station.isPending });
+
+    state.isInPlacementMode = false;
+    state.stationPendingPlacement = null;
+    saveState();
+
+    console.log('[CREATE] State saved');
+
+    document.getElementById('placement-instruction').style.display = 'none';
+
+    showToast(`✓ ${station.name} Placed`);
+
+    console.log('[CREATE] Calling renderFloorDetail');
+    renderFloorDetail();
+    console.log('[CREATE] renderFloorDetail complete');
+  }
+
+  function updateStation(name, wasteStreams) {
+    const floor = state.audit.floors[state.currentFloorIdx];
+    const station = floor.stations.find(s => s.id === state.editingStationId);
+    if (!station) return;
+
+    const photos = [];
+    if (state.currentPhotosTemp.stationPhoto) {
+      photos.push({
+        id: state.currentPhotosTemp.stationPhoto.id || 'photo-' + Date.now(),
+        dataUrl: state.currentPhotosTemp.stationPhoto.dataUrl,
+        type: 'station',
+        timestamp: state.currentPhotosTemp.stationPhoto.timestamp || new Date().toISOString()
+      });
+    }
+    if (state.currentPhotosTemp.binPhotos && state.currentPhotosTemp.binPhotos.length > 0) {
+      state.currentPhotosTemp.binPhotos.forEach((bp, idx) => {
+        photos.push({
+          id: bp.id || 'photo-' + Date.now() + idx,
+          dataUrl: bp.dataUrl,
+          type: 'bin',
+          binNumber: idx + 1,
+          timestamp: bp.timestamp || new Date().toISOString()
+        });
+      });
+    }
+
+    station.name = name;
+    station.wasteStreams = wasteStreams;
+    station.photos = photos;
+    station.updatedAt = new Date().toISOString();
+
+    saveState();
+    closeStationModal();
+
+    showToast(`✓ ${name} Updated`);
+
+    renderFloorDetail();
+  }
+
+  function openDeleteConfirmModal(stationId) {
+    document.getElementById('modal-delete-confirm').dataset.stationId = stationId;
+    openModal('modal-delete-confirm');
+  }
+
+  function confirmDelete() {
+    const stationId = document.getElementById('modal-delete-confirm').dataset.stationId;
+    const floor = state.audit.floors[state.currentFloorIdx];
+    const station = floor.stations.find(s => s.id === stationId);
+    if (!station) return;
+
+    const stationName = station.name;
+    floor.stations = floor.stations.filter(s => s.id !== stationId);
+    saveState();
+    closeModal('modal-delete-confirm');
+
+    showToast(`✓ ${stationName} Deleted`);
+    renderFloorDetail();
+  }
+
+  // ── FLOOR COMPLETION ──
+  function confirmFloorComplete() {
+    const floor = state.audit.floors[state.currentFloorIdx];
+    floor.isComplete = true;
+    saveState();
+    closeModal('modal-floor-complete');
+
+    const allComplete = state.audit.floors.every(f => f.isComplete);
+    if (allComplete) {
+      alert('All floors complete! Proceed to review and export.');
+      showScreen('s-review');
+    } else {
+      showScreen('s-floors');
+    }
+  }
+
+  // ── REVIEW ──
+  function renderReview() {
+    const container = document.getElementById('review-floors');
+    document.getElementById('review-building').textContent = state.audit.buildingName;
+
+    const totalStations = state.audit.floors.reduce((sum, f) => sum + f.stations.length, 0);
+    document.getElementById('review-station-count').textContent = totalStations;
+
+    container.innerHTML = state.audit.floors.map(floor => `
+      <div class="card">
+        <h3 style="font-size:14px;font-weight:700;margin-bottom:8px;">${floor.name}</h3>
+        <p class="text-small text-muted" style="margin-bottom:8px;">${floor.stations.length} station${floor.stations.length !== 1 ? 's' : ''}</p>
+        ${floor.stations.length > 0 ? `
+          <div style="display:flex;flex-wrap:wrap;gap:4px;">
+            ${floor.stations.map(s => `<span class="stream-tag">${s.name}</span>`).join('')}
+          </div>
+        ` : '<p class="text-small text-muted">No stations</p>'}
+      </div>
+    `).join('');
+  }
+
+  // ── EXPORT ──
+  function downloadAudit() {
+    const dataStr = JSON.stringify(state.audit, null, 2);
+    const dataBlob = new Blob([dataStr], {type: 'application/json'});
+    const url = URL.createObjectURL(dataBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `audit_${state.audit.buildingName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    alert('Audit exported! Please email the files to the Spare-it team.');
+  }
+
+  // ── MODALS ──
+  function openModal(id) {
+    document.getElementById(id).classList.add('active');
+  }
+
+  function closeModal(id) {
+    document.getElementById(id).classList.remove('active');
+  }
+
+  // ── TOAST ──
+  function showToast(message) {
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--green);
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-weight: 600;
+      z-index: 200;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      animation: slideUp 0.3s ease;
+    `;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.animation = 'slideDown 0.3s ease';
+      setTimeout(() => toast.remove(), 300);
+    }, 2500);
+  }
+
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes slideUp {
+      from { transform: translateX(-50%) translateY(20px); opacity: 0; }
+      to { transform: translateX(-50%) translateY(0); opacity: 1; }
+    }
+    @keyframes slideDown {
+      from { transform: translateX(-50%) translateY(0); opacity: 1; }
+      to { transform: translateX(-50%) translateY(20px); opacity: 0; }
+    }
+  `;
+  document.head.appendChild(style);
+
+  window.addEventListener('load', init);
+
+  window.addEventListener('beforeunload', (e) => {
+    if (state.audit && state.audit.floors.some(f => f.stations.length > 0)) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+</script>
+
+</body>
+</html>
