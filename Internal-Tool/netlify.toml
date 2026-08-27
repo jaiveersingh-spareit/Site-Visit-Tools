@@ -1,0 +1,14 @@
+[build]
+  command = "echo 'No build step needed - single page app'"
+  publish = "."
+  functions = "netlify/functions"
+
+[env]
+  [env.production]
+    SENDGRID_API_KEY = ""
+    OPERATIONS_EMAIL = "support@spare-it.com"
+
+[[redirects]]
+  from = "/*"
+  to = "/Spare-it_site_visit_form_MVP.html"
+  status = 200
