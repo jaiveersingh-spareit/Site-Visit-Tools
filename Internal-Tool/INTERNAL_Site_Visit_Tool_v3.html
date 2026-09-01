@@ -6244,66 +6244,177 @@ function exportCSV(){
 
 
 // ── EMAIL EXPORT (NETLIFY) ────────────────────────────────────────────────
+// The hosted function accepts ~6MB per request. Photos are base64 dataURLs in
+// the payload, so a multi-floor visit can exceed that AFTER a full day of
+// capture. We measure the real payload before sending and refuse early, and we
+// offer a per-floor export so each request stays well under the cap.
+const EXPORT_MAX_BYTES  = 5.5 * 1024 * 1024;  // hard stop, under the ~6MB function cap
+const EXPORT_WARN_BYTES = 4.0 * 1024 * 1024;  // soft warning, ~75% of the cap
+
+function fmtMB(bytes){ return (bytes / (1024*1024)).toFixed(1) + 'MB'; }
+
+function countPayloadPhotos(payload){
+  let n = (payload.visitData.contextPhotos || []).length;
+  (payload.visitData.floors || []).forEach(f => {
+    if (f.markupDataUrl) n++;
+    (f.stations || []).forEach(st => {
+      n += (st.photos || []).length;
+      if (st.photoDataUrl && !(st.photos || []).length) n++;
+    });
+    (f.gateways || []).forEach(gw => { if (gw.photoDataUrl) n++; });
+    (f.displays || []).forEach(d  => { if (d.photoDataUrl)  n++; });
+  });
+  return n;
+}
+
+function buildExportPayload(floors, opts){
+  opts = opts || {};
+  return {
+    building: S.building || '',
+    address:  S.address  || '',
+    auditor:  S.auditor  || '',
+    date:     S.date     || '',
+    partLabel: opts.partLabel || '',
+    visitData: {
+      // Context photos ride along with the whole-visit export, or with the
+      // first floor only, so they are never sent twice.
+      contextPhotos: opts.includeContext === false ? [] : (S.contextPhotos || []),
+      floors: floors || [],
+    },
+  };
+}
+
+// Sends one payload. Returns the parsed result, throws on failure.
+async function postExport(payload){
+  const body  = JSON.stringify(payload);
+  const bytes = body.length;
+  const photos = countPayloadPhotos(payload);
+  console.log('[EXPORT EMAIL] payload', fmtMB(bytes), photos, 'photos');
+
+  if (bytes > EXPORT_MAX_BYTES){
+    throw new Error(
+      'This export is ' + fmtMB(bytes) + ' (' + photos + ' photos), over the ' +
+      fmtMB(EXPORT_MAX_BYTES) + ' send limit.\n\n' +
+      'Use "Email floor by floor" from the export menu instead — it sends one ' +
+      'request per floor so nothing is lost.'
+    );
+  }
+
+  const response = await fetch('/.netlify/functions/send-export', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: body,
+  });
+
+  let result;
+  try { result = await response.json(); }
+  catch(e){ throw new Error('Server returned an unreadable response (' + response.status + ').'); }
+
+  if (!response.ok) throw new Error(result.error || ('Failed to send export (' + response.status + ')'));
+  return { result: result, photos: photos, bytes: bytes };
+}
+
+function setExportBusy(busy, label){
+  document.querySelectorAll('[data-export-btn]').forEach(b => {
+    if (busy){
+      if (b.dataset.originalText === undefined) b.dataset.originalText = b.textContent;
+      b.disabled = true;
+    } else {
+      b.disabled = false;
+      if (b.dataset.originalText !== undefined){
+        b.textContent = b.dataset.originalText;
+        delete b.dataset.originalText;
+      }
+    }
+  });
+  const status = document.getElementById('export-status');
+  if (status){
+    status.textContent = busy ? (label || 'Sending…') : '';
+    status.style.display = busy ? 'block' : 'none';
+  }
+}
+
+// Whole-visit export.
 async function emailExportToOperations(){
-  if(!S.floors.length){
-    alert('No data to export yet.');
+  if(!S.floors.length){ alert('No data to export yet.'); return; }
+
+  const preview = buildExportPayload(S.floors, {});
+  const bytes   = JSON.stringify(preview).length;
+  const photos  = countPayloadPhotos(preview);
+
+  if (bytes > EXPORT_MAX_BYTES){
+    alert(
+      '⚠️ Too large to send in one email\n\n' +
+      'This visit is ' + fmtMB(bytes) + ' across ' + photos + ' photos, over the ' +
+      fmtMB(EXPORT_MAX_BYTES) + ' limit.\n\n' +
+      'Use "Email floor by floor" instead — it sends one email per floor. ' +
+      'Nothing you captured is lost.'
+    );
     return;
   }
+  if (bytes > EXPORT_WARN_BYTES){
+    if(!confirm(
+      'This export is ' + fmtMB(bytes) + ' (' + photos + ' photos) — close to the ' +
+      fmtMB(EXPORT_MAX_BYTES) + ' limit.\n\n' +
+      'Sending floor by floor is safer. Send it all in one email anyway?'
+    )) return;
+  }
 
-  // Show loading state
-  const btn = document.querySelector('[onclick*="emailExportToOperations"]');
-  const originalText = btn?.textContent || '📧 Email Export';
-  if(btn) btn.textContent = '⏳ Sending...';
-  if(btn) btn.disabled = true;
-
+  setExportBusy(true, 'Sending export…');
   try {
-    console.log('[EXPORT EMAIL] Preparing site visit data for email...');
-
-    // Prepare visit data payload
-    const visitData = {
-      contextPhotos: S.contextPhotos || [],
-      floors: S.floors || [],
-    };
-
-    const payload = {
-      building: S.building || '',
-      address: S.address || '',
-      auditor: S.auditor || '',
-      date: S.date || '',
-      visitData: visitData,
-    };
-
-    console.log('[EXPORT EMAIL] Sending to Netlify function...');
-    console.log('[EXPORT EMAIL] Data size:', JSON.stringify(payload).length, 'bytes');
-
-    // Send to Netlify Function
-    const response = await fetch('/.netlify/functions/send-export', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const result = await response.json();
-
-    if(!response.ok){
-      throw new Error(result.error || 'Failed to send export');
-    }
-
-    console.log('[EXPORT EMAIL] ✓ Success:', result);
-    alert(`✅ Export sent to ${result.details.recipients}\n\nPhotos included: ${result.details.photosIncluded}`);
-
+    const out = await postExport(preview);
+    alert('✅ Export sent to ' + (out.result.details?.recipients || 'operations') +
+          '\n\nPhotos included: ' + (out.result.details?.photosIncluded ?? out.photos));
   } catch(error) {
     console.error('[EXPORT EMAIL ERROR]', error);
-    alert(`❌ Failed to send export:\n\n${error.message}`);
+    alert('❌ Failed to send export:\n\n' + error.message);
   } finally {
-    // Restore button state
-    if(btn){
-      btn.textContent = originalText;
-      btn.disabled = false;
-    }
+    setExportBusy(false);
   }
+}
+
+// Per-floor export — one request per floor, sent in order. Safe for large visits.
+async function emailExportByFloor(){
+  if(!S.floors.length){ alert('No data to export yet.'); return; }
+
+  const total = S.floors.length;
+  if(!confirm('Send ' + total + ' separate email' + (total===1?'':'s') +
+              ', one per floor?\n\nEach one is confirmed before the next is sent.')) return;
+
+  setExportBusy(true, 'Sending floor 1 of ' + total + '…');
+  const sent = [], failed = [];
+
+  try {
+    for (let i = 0; i < total; i++){
+      const f = S.floors[i];
+      const label = 'Floor ' + f.number + ' (' + (i+1) + ' of ' + total + ')';
+      const status = document.getElementById('export-status');
+      if (status) status.textContent = 'Sending ' + label + '…';
+
+      const payload = buildExportPayload([f], {
+        includeContext: i === 0,   // context photos ride with the first floor only
+        partLabel: label,
+      });
+
+      try {
+        const out = await postExport(payload);
+        sent.push('Floor ' + f.number + ' — ' + out.photos + ' photos');
+      } catch(err){
+        console.error('[EXPORT EMAIL ERROR] floor ' + f.number, err);
+        failed.push('Floor ' + f.number + ' — ' + err.message);
+        if(!confirm('❌ ' + label + ' failed:\n\n' + err.message +
+                    '\n\nContinue with the remaining floors?')) break;
+      }
+    }
+  } finally {
+    setExportBusy(false);
+  }
+
+  let msg = '';
+  if (sent.length)   msg += '✅ Sent:\n' + sent.join('\n') + '\n\n';
+  if (failed.length) msg += '❌ Not sent:\n' + failed.join('\n') +
+                            '\n\nYour data is still saved on this device — retry these floors.';
+  alert(msg || 'Nothing was sent.');
 }
 
 // ── EXCEL EXPORT ──────────────────────────────────────────────────────────
@@ -6878,6 +6989,8 @@ try {
   window.deselectStream = deselectStream;
   window.continueWithStreams = continueWithStreams;
   window.exportZip = exportZip;
+  window.emailExportToOperations = emailExportToOperations;
+  window.emailExportByFloor = emailExportByFloor;
   window.doExportExcel = doExportExcel;
   window.exportCSV = exportCSV;
   window.exportEnhancedCSVFile = exportEnhancedCSVFile;
@@ -6898,11 +7011,19 @@ try {
     <div class="modal-title">Export Audit Data</div>
     <div class="modal-sub">Choose your format(s) — all contain complete data.</div>
     <div style="display:flex;flex-direction:column;gap:12px;">
-      <button class="btn btn-primary" style="align-items:flex-start;gap:14px;padding:16px 18px;" onclick="closeModal('modal-export');emailExportToOperations();">
+      <div id="export-status" style="display:none;font-size:12px;font-weight:600;padding:10px 12px;border-radius:8px;background:#f1f5f9;color:#334155;"></div>
+      <button class="btn btn-primary" data-export-btn style="align-items:flex-start;gap:14px;padding:16px 18px;" onclick="closeModal('modal-export');emailExportToOperations();">
         <span style="font-size:26px;flex-shrink:0;">📧</span>
         <div style="text-align:left;">
           <div style="font-size:15px;">📧 Email to Operations (Recommended)</div>
           <div style="font-size:11px;font-weight:500;opacity:0.8;margin-top:2px;">Sends complete export to support@spare-it.com<br>Includes: Excel · Photos · All site details</div>
+        </div>
+      </button>
+      <button class="btn btn-primary" data-export-btn style="align-items:flex-start;gap:14px;padding:16px 18px;" onclick="closeModal('modal-export');emailExportByFloor();">
+        <span style="font-size:26px;flex-shrink:0;">🏢</span>
+        <div style="text-align:left;">
+          <div style="font-size:15px;">Email floor by floor</div>
+          <div style="font-size:11px;font-weight:500;opacity:0.8;margin-top:2px;">One email per floor — use for large or multi-floor sites<br>Each floor is confirmed before the next is sent</div>
         </div>
       </button>
       <button class="btn btn-primary" style="align-items:flex-start;gap:14px;padding:16px 18px;" onclick="closeModal('modal-export');exportZipWithFloorPlans();">

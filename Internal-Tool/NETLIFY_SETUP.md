@@ -1,5 +1,33 @@
 # Netlify Functions Setup Guide
 
+> **Quick start — 27 Aug 2026.** The repo is on GitHub at
+> `jaiveersingh-spareit/Site-Visit-Tools`. No Netlify site is connected yet.
+> Do these six steps to get a URL. ~20 minutes.
+>
+> 1. netlify.com → **Add new site → Import an existing project → GitHub** →
+>    pick `Site-Visit-Tools`.
+> 2. In the build settings, set **Base directory** to `Internal-Tool`.
+>    Leave build command and publish directory alone — `Internal-Tool/netlify.toml`
+>    supplies them. Getting this wrong is why the functions won't be found.
+> 3. Deploy. You get a `*.netlify.app` URL.
+> 4. **Site configuration → Environment variables** → add:
+>    - `SENDGRID_API_KEY` = your SendGrid key (see Step 1 below)
+>    - `OPERATIONS_EMAIL` = `support@spare-it.com`
+>    These live **only** here. `netlify.toml` no longer declares them — a value
+>    in that file overrides the dashboard, and the empty string that used to be
+>    there broke email export silently.
+> 5. **Trigger deploy → Clear cache and deploy site** so the function picks up
+>    the variables.
+> 6. Open the URL on a phone. It must load `INTERNAL_Site_Visit_Tool_v3.html`.
+>    Then run the field gate: a real floor plan, 15+ photos, and confirm the
+>    export email actually arrives.
+>
+> **Sender verification:** the function sends from `noreply@spare-it.com`.
+> That address must be a verified sender or domain in SendGrid, or every send
+> fails with a 403 regardless of the key.
+
+---
+
 This guide covers deploying the Spare-it Site Visit Form to Netlify with email export functionality.
 
 ## Prerequisites
@@ -30,7 +58,7 @@ Ensure your project has this structure:
 
 ```
 Project Root/
-├── Spare-it_site_visit_form_MVP.html
+├── INTERNAL_Site_Visit_Tool_v3.html
 ├── netlify.toml
 ├── .env.example
 └── netlify/

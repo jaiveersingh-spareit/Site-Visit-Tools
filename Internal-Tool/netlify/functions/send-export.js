@@ -137,10 +137,29 @@ exports.handler = async (event) => {
     };
   }
 
+  // Reject an oversized request before parsing it. The platform caps a function
+  // request near 6MB; a payload past that must fail with a message the auditor
+  // can act on, not a generic 500 at the end of a day of capture.
+  const MAX_REQUEST_BYTES = 5.5 * 1024 * 1024;
+  const requestBytes = Buffer.byteLength(event.body || "", "utf8");
+  if (requestBytes > MAX_REQUEST_BYTES) {
+    console.error(
+      `[EXPORT EMAIL ERROR] payload too large: ${(requestBytes / 1048576).toFixed(1)}MB`
+    );
+    return {
+      statusCode: 413,
+      body: JSON.stringify({
+        error:
+          `Export too large (${(requestBytes / 1048576).toFixed(1)}MB). ` +
+          `Use "Email floor by floor" to send one email per floor.`,
+      }),
+    };
+  }
+
   try {
     // Parse request body
     const payload = JSON.parse(event.body);
-    const { building, address, auditor, date, visitData } = payload;
+    const { building, address, auditor, date, visitData, partLabel } = payload;
 
     if (!visitData) {
       return {
@@ -169,7 +188,7 @@ exports.handler = async (event) => {
     });
 
     // Prepare email
-    const emailSubject = `Site Visit Export - ${building} (${date || "Draft"})`;
+    const emailSubject = `Site Visit Export - ${building}${partLabel ? " - " + partLabel : ""} (${date || "Draft"})`;
     const emailBody = `
 Site Visit Export
 ================

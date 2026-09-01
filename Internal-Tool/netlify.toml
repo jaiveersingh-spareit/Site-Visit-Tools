@@ -3,12 +3,11 @@
   publish = "."
   functions = "netlify/functions"
 
-[env]
-  [env.production]
-    SENDGRID_API_KEY = ""
-    OPERATIONS_EMAIL = "support@spare-it.com"
+# Environment variables (SENDGRID_API_KEY, OPERATIONS_EMAIL) are set in the
+# Netlify dashboard only. Do NOT declare them here: a value set in this file
+# overrides the dashboard, and an empty string silently breaks email export.
 
 [[redirects]]
   from = "/*"
-  to = "/Spare-it_site_visit_form_MVP.html"
+  to = "/INTERNAL_Site_Visit_Tool_v3.html"
   status = 200
