@@ -4176,11 +4176,11 @@ function selectStation(){
   if(S.selectedStreams && Array.isArray(S.selectedStreams)){
     S.selectedStreams.forEach(streamObj => {
       const stream = streamObj.stream || streamObj;
-      ['Small', 'Medium', 'Large'].forEach((scaleName, idx) => {
+      ['Small', 'Medium', 'Large'].forEach((scaleName) => {
         stationCreationBins.push({
           stream: stream,
           scale: scaleName,
-          selected: idx === 0, // Select "Small" by default (idx = 0)
+          selected: false, // none pre-selected — matches openAddStation() and the isStreamIncluded fix; previously this pre-checked every waste stream with Small the instant a pin was placed via the 'tap plan first' flow
           accessories: [],
           photos: []
         });
@@ -4768,7 +4768,7 @@ function renderStationBinsUI(){
 
       // Find all bins for this stream from stationCreationBins
       const streamBins = stationCreationBins.filter(b => b.stream === stream);
-      const isStreamIncluded = streamBins.length > 0; // Stream is included if it has any bins
+      const isStreamIncluded = streamBins.some(b => b.selected); // Stream is included only if a size is actually selected — every stream gets 3 placeholder (Small/Medium/Large) entries at init, so checking length alone made every checkbox render pre-checked
 
       html += `<div style="background:var(--card);border:0.5px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px;">
         <!-- Stream Header Row: Checkbox + Name + Size Buttons -->
@@ -4860,7 +4860,7 @@ function handleStreamSizeClick(stream, size, event){
 
   // Check if stream is actually included before allowing size selection
   const streamBins = stationCreationBins.filter(b => b.stream === stream);
-  const isStreamIncluded = streamBins.length > 0; // Stream is included if it has any bins
+  const isStreamIncluded = streamBins.some(b => b.selected); // Stream is included only if a size is actually selected — every stream gets 3 placeholder (Small/Medium/Large) entries at init, so checking length alone made every checkbox render pre-checked
 
   if(!isStreamIncluded) {
     console.warn('[SIZE BUTTON] Stream not included, ignoring click:', stream);
@@ -6982,12 +6982,12 @@ try {
   window.positionDisplayNow = positionDisplayNow;
   window.addGateway = addGateway;
   window.addDisplay = addDisplay;
-  window.renameGateway = renameGateway;
+  // renameGateway/selectStream/deselectStream/continueWithStreams removed:
+  // none of these functions exist in this build (leftover from an earlier
+  // rewrite). Referencing them here threw a ReferenceError on every load,
+  // silently skipping every export below it in this try block.
   window.addSelectedBins = addSelectedBins;
   window.toggleScaleAccessories = toggleScaleAccessories;
-  window.selectStream = selectStream;
-  window.deselectStream = deselectStream;
-  window.continueWithStreams = continueWithStreams;
   window.exportZip = exportZip;
   window.emailExportToOperations = emailExportToOperations;
   window.emailExportByFloor = emailExportByFloor;
@@ -6995,7 +6995,7 @@ try {
   window.exportCSV = exportCSV;
   window.exportEnhancedCSVFile = exportEnhancedCSVFile;
   window.goFloors = goFloors;
-  window.goFloor = goFloor;
+  // 'goFloor' (singular) removed: no such function exists, only goFloors(); referencing it threw and skipped every export below it.
   if (typeof repositionStation !== 'undefined') window.repositionStation = repositionStation;
   if (typeof repositionGateway !== 'undefined') window.repositionGateway = repositionGateway;
   if (typeof repositionDisplay !== 'undefined') window.repositionDisplay = repositionDisplay;
