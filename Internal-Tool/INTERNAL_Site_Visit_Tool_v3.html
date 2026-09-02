@@ -1284,67 +1284,12 @@
   <div class="modal-sheet">
     <div class="modal-handle"></div>
     <div class="modal-title">Add Bin to Station</div>
+    <!-- Only bin-form-content is live: renderBinForm() fills this in and supplies
+         its own Cancel / Add Selected Bins actions. The stream/size/type select
+         fields and the "Add Bin" button that used to sit below this were dead
+         leftover markup — that button called addBin(), which does not exist
+         anywhere in this file, so tapping it silently did nothing. Removed. -->
     <div id="bin-form-content"></div>
-    <div style="display:none" class="fgroup">
-      <label class="flabel">Waste Stream</label>
-      <select id="new-bin-stream">
-        <option value="">Select stream…</option>
-        <optgroup label="Core Streams">
-          <option>Trash</option>
-          <option>Compost</option>
-          <option>Mixed Recycling</option>
-          <option>Paper/Cardboard</option>
-          <option>Glass</option>
-        </optgroup>
-        <optgroup label="Speciality">
-          <option>Plastics</option>
-          <option>Plastic Bottles</option>
-          <option>Beverage Cartons</option>
-          <option>Coffee Cups</option>
-          <option>Coffee pod/ground</option>
-          <option>Cardboard</option>
-          <option>Metals</option>
-          <option>e-Waste</option>
-          <option>Textile</option>
-          <option>Food Share</option>
-          <option>Donation</option>
-          <option>Biohazard</option>
-          <option>Other Recycling</option>
-        </optgroup>
-      </select>
-    </div>
-    <div class="grid-2">
-      <div class="fgroup">
-        <label class="flabel">Bin Size</label>
-        <select id="new-bin-size">
-          <option value="">Select…</option>
-          <option>0-5 gal</option>
-          <option>11-25 gal</option>
-          <option>26-35 gal</option>
-          <option>36-50 gal</option>
-          <option>&gt;50 gal</option>
-        </select>
-      </div>
-      <div class="fgroup">
-        <label class="flabel">Bin Type</label>
-        <select id="new-bin-acc">
-          <option value="Unspecified">Unspecified</option>
-          <option>Bag</option>
-          <option>Barrel</option>
-          <option>Desk Bin</option>
-          <option>Individual Bin</option>
-          <option>Shredder</option>
-          <option>Slim Jim</option>
-          <option>Step Bin</option>
-          <option>Trash Container</option>
-          <option>Wheel Bin</option>
-        </select>
-      </div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-bin')">Cancel</button>
-      <button class="btn btn-primary" style="flex:2" onclick="addBin()">Add Bin</button>
-    </div>
   </div>
 </div>
 
@@ -1519,12 +1464,22 @@ function showSaveIndicator(){
   if(!ind){
     ind=document.createElement('div');
     ind.id='save-indicator';
-    ind.style.cssText='position:fixed;bottom:20px;right:20px;background:#10B981;color:#fff;padding:10px 16px;border-radius:8px;font-size:12px;font-weight:600;z-index:150;box-shadow:0 4px 12px rgba(0,0,0,0.2);';
+    // pointer-events:none — this is a passive "✓ Saved" toast, never something to
+    // tap. Without it, this fixed bottom-right box sat on top of whatever real
+    // button happened to render underneath it (station/gateway/display delete,
+    // among others) and silently absorbed every click there for the rest of the
+    // session, because it never fully disappears (see below).
+    ind.style.cssText='position:fixed;bottom:20px;right:20px;background:#10B981;color:#fff;padding:10px 16px;border-radius:8px;font-size:12px;font-weight:600;z-index:150;box-shadow:0 4px 12px rgba(0,0,0,0.2);pointer-events:none;transition:opacity 0.3s;';
     document.body.appendChild(ind);
   }
   ind.textContent='✓ Saved';
   ind.style.opacity='1';
-  setTimeout(()=>{ind.style.opacity='0.3';},2000);
+  ind.style.display='block';
+  clearTimeout(window._saveIndicatorTimer);
+  // Fully hide it after the fade — previously it only dimmed to 30% opacity and
+  // stayed in the layout permanently, which is what let it keep blocking clicks
+  // even when it looked like it had gone away.
+  window._saveIndicatorTimer = setTimeout(()=>{ind.style.opacity='0'; setTimeout(()=>{ ind.style.display='none'; }, 300); },2000);
 }
 function gF(){ return S.floors.find(f=>f.id===curFloorId); }
 function gSt(){ return gF()?.stations.find(s=>s.id===curStationId); }
