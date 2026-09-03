@@ -213,7 +213,7 @@ This is an automated export from the Spare-it Site Visit Form.
 
     const msg = {
       to: process.env.OPERATIONS_EMAIL || "support@spare-it.com",
-      from: "noreply@spare-it.com", // Update with your Spare-it sender email
+      from: "jaiveer.singh@spare-it.com",
       subject: emailSubject,
       text: emailBody,
       html: `<pre>${emailBody}</pre>`,
