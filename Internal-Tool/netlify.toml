@@ -1,7 +1,10 @@
 [build]
-  command = "echo 'No build step needed - single page app'"
+  command = "npm install --prefix netlify/functions"
   publish = "."
   functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
 
 # Environment variables (SENDGRID_API_KEY, OPERATIONS_EMAIL) are set in the
 # Netlify dashboard only. Do NOT declare them here: a value set in this file
