@@ -158,25 +158,67 @@ Update it in place. Mark an item `RESOLVED <date> — <how it was verified>` rat
 deleting it; a blocker that came back once will come back again. `Fixed` requires that
 someone ran it and watched it work.
 
-## Field test feedback — 08 Sep 2026 (Tuesday), untriaged
+## Field test feedback — MFS Luxembourg, 08 Sep 2026 (Tuesday)
 
-Raw feedback from Jaiveer's first live test of the app. Logged as reported; none of these
-have been root-caused yet. Move an item into "Shipping blockers" above once diagnosed.
+First live field test of the Internal Tool, on-site at MFS Luxembourg (4 rue Albert
+Borschette), auditor Carine. Source: Jaiveer's verbal/Slack feedback the same morning,
+cross-checked against the actual exports from that visit (`Site_Visit_Data.xlsx`,
+`MFS_Luxembourg_site_visit_20260908.xlsx`) and two in-app screenshots of the floor plan.
+Evidence below is what the exports and screenshots actually show — not yet a code-level
+root cause. Move an item into "Shipping blockers" above once the code is read and a cause
+is confirmed.
 
-- **Moved pins on the floor map, didn't save** — pin positions changed during the session
-  were lost (no save happened, or save didn't persist).
-- **Missing "confidential paper" waste stream** — that waste stream option isn't available
-  when configuring a station.
-- **Unclear how to rename a station** — no obvious way to rename a station once created.
-- **Can't export with pictures — file too large** — export fails when photos are attached
-  (likely related to blocker 03's size guard, but reported as a hard failure, not a warned
-  confirmation).
-- **Can't add a photo to a station/gateway/display from the camera roll** — the photo picker
-  only offers "take a picture," no option to select an existing photo from the camera roll.
+### Confirmed by the exported data
+
+- **Pins disappeared / moved pins didn't save.** One screenshot shows an extra blue pin
+  labeled "1" near station B / display D1 that does **not** appear in either export's pin
+  table (`Floor Plan Pins` / `Field Notes` both list only A, B, C, D, E, GW1, D1 — seven
+  pins, not eight). Something placed in-app did not survive to export. This is the same
+  shape of failure as blocker 05 (Add Station/Gateway/Display leaves a pin stuck in a
+  pending/positioning state) — plausibly the same underlying bug, seen live for the first
+  time.
+- **Can't export with pictures.** Both exports read `Photos Exported: 0 photos`, and every
+  row's `Photo Filename` column is blank. No photos reached either export — not a
+  size-warning path, a total absence. Consistent with (and possibly explains) the
+  camera-roll complaint below: if photos never attach client-side, there is nothing to
+  export regardless of size.
+- **Missing "confidential paper" waste stream.** The `Bins` sheet only offers
+  Trash / Paper-Cardboard / Compost / Glass / Recycling. "Confidential paper" only exists
+  as a free-text note on station B ("2 Large are confidential paper in metal locked box"),
+  never as a selectable stream. This reads as a genuine feature gap (missing stream type),
+  not a bug — needs a product decision, not a code fix.
+
+### New issue found via the exports, not originally reported
+
+- **Two export code paths, two schemas.** `Site_Visit_Data.xlsx` and
+  `MFS_Luxembourg_site_visit_20260908.xlsx` are exports of the *same* visit but use
+  different sheet names and layouts (`Summary`/`Floor Plan Pins`/`Bins` vs. `Building
+  Info`/`Bins`/`Field Notes`). The underlying pin/bin data matches between them, but two
+  divergent export formats existing for one visit is a data-integrity risk independent of
+  the field feedback above.
+
+### Reported, not yet confirmed against data
+
+- **Unclear how to rename a station.** Stations A and B show real names ("Cuisine",
+  "Printing area"); C, D, E still show their raw letter as the location name. Ambiguous
+  from the data alone whether rename is broken/undiscoverable or these three were
+  deliberately left as unnamed open spaces (their notes say individual bins should be
+  consolidated) — needs a code check.
+- **Can't add a photo to a station/gateway/display from the camera roll** — picker only
+  offers "take a picture." Can't verify from the exports (zero photos either way), but
+  consistent with the zero-photos finding above.
 - **Pin placement on the floor map is difficult / sometimes buggy** — general friction and
-  intermittent misbehavior placing pins (may overlap with blocker 05 and the positioning
-  subsystem's known offset/pan issues).
-- **Exported floor map with bins doesn't match the in-app floor map** — the bin layout in
-  the exported map differs from what's shown in the app.
-- **Pins on the map disappeared** — pins that had been placed were later gone from the
-  floor map view.
+  intermittent misbehavior placing pins. May overlap with blocker 05 and the positioning
+  subsystem's known offset/pan issues (see "Positioning subsystem" below).
+- **Exported floor map with bins doesn't match the in-app floor map.** The coordinate data
+  itself is internally consistent between both export formats (same X/Y to 2 decimals),
+  so this isn't a coordinate-transform mismatch — the missing "1" pin above is itself an
+  app-vs-export mismatch, just not the coordinate kind this item may have meant. Needs
+  clarification on what exactly looked different.
+
+### Working hypothesis for the code dive
+
+Three of the eight items (disappeared pin, unsaved pin move, and possibly the missing
+photos) point at the same place: whatever happens to a pin or attachment between
+placement/reposition and the data that export reads from. Worth tracing that save/persist
+path first, rather than treating these as eight unrelated bugs.
