@@ -4078,8 +4078,11 @@ function handlePlanTap(e){
     });
   }
 
-  // Handle station positioning mode
-  if(stationPositioningMode){
+  // Handle station positioning mode (repositioning an EXISTING station only —
+  // first-time creation has stationPositioningMode=true but no positioningStationId yet,
+  // and must fall through to normal pin placement below so confirmPinLocation() opens
+  // the station configuration modal instead of silently failing)
+  if(stationPositioningMode && positioningStationId){
     console.log('[PLAN TAP] Handling station positioning');
     if(handleStationPosition()){  // Returns true if valid, false if error
       confirmPinLocation();
@@ -4087,8 +4090,8 @@ function handlePlanTap(e){
     return;
   }
 
-  // Handle gateway positioning mode
-  if(gatewayPositioningMode){
+  // Handle gateway positioning mode (repositioning an EXISTING gateway only — see station note above)
+  if(gatewayPositioningMode && positioningGatewayId){
     console.log('[PLAN TAP] Handling gateway positioning');
     if(handleGatewayPosition()){  // Returns true if valid, false if error
       confirmPinLocation();
@@ -4096,8 +4099,8 @@ function handlePlanTap(e){
     return;
   }
 
-  // Handle display positioning mode
-  if(displayPositioningMode){
+  // Handle display positioning mode (repositioning an EXISTING display only — see station note above)
+  if(displayPositioningMode && positioningDisplayId){
     console.log('[PLAN TAP] Handling display positioning');
     if(handleDisplayPosition()){  // Returns true if valid, false if error
       confirmPinLocation();

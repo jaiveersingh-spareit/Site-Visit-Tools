@@ -89,6 +89,38 @@ system of record, so if the app fails nothing is lost and we still learn somethi
 **Remaining to field-ready: blocker 02 (~20 min) plus one device test.** 00, 01 and 03 are
 fixed in code and await a live site to be verified against.
 
+### 05 · "Add Station/Gateway/Display" placed no pin on first-time creation — BLOCKER · RESOLVED 03 Sep 2026 (code) · UNVERIFIED IN FIELD
+**Found 3 Sep 2026** (Jaiveer, testing on the app). Tapping "+ Add Station" (or Gateway /
+Display) put the floor plan into pin-placement mode correctly, but tapping the floor plan
+image afterward silently did nothing — no pin appeared, no error shown.
+
+**Root cause:** `openAddStation()` / `openAddGateway()` / `openAddDisplay()` set
+`stationPositioningMode` / `gatewayPositioningMode` / `displayPositioningMode = true` to
+enter pin mode, but never set `positioningStationId` / `positioningGatewayId` /
+`positioningDisplayId` (there's no object yet — that's the point of "Add"). `handlePlanTap()`
+saw the positioning-mode flag and routed every tap through `handleStationPosition()` /
+`handleGatewayPosition()` / `handleDisplayPosition()` — the handlers meant for
+**repositioning an existing pin** — whose first line is `if(!...PositioningMode ||
+!positioning...Id) return false`. With the id null, each returned `false` immediately,
+`confirmPinLocation()` never ran, and the tap was silently dropped. All three "Add" flows
+had the identical bug; repositioning an existing pin was unaffected (its start functions do
+set the id) and was confirmed working, coordinates included.
+
+**Fix:** `handlePlanTap()`'s three routing checks (around line 4085) now require the
+matching id (`stationPositioningMode && positioningStationId`, etc.) before calling the
+reposition handlers. Without an id, the tap falls through to the existing "normal pin
+placement" branch at the bottom of the function, which already calls
+`showTapHighlight()` + `confirmPinLocation()` — and `confirmPinLocation()` already had
+correct, untouched logic for `!isRepositioning && stationPositioningMode` (etc.) that opens
+the station/gateway/display configuration modal and saves `pendingPinX/Y` onto the new
+object once it's created. No new logic was added; first-time creation now goes through the
+same normal-pin-placement path repositioning always used.
+
+*Verified by reading the code and by parsing all inline `<script>` blocks with Node
+(`new Function(...)`) — no syntax errors. **Not yet tested on a device** — needs someone to
+tap "+ Add Station/Gateway/Display" on a phone and confirm a pin actually appears and the
+configuration modal opens, per rule 4 (`Fixed` requires watching it work).*
+
 ## Second tier — known debt, not shipping blockers
 
 Carried from `../_Knowledge/02_Bug_Patterns_And_Fixes.md` and `04_Architecture_And_Storage.md`:
@@ -125,3 +157,26 @@ field complaint:
 Update it in place. Mark an item `RESOLVED <date> — <how it was verified>` rather than
 deleting it; a blocker that came back once will come back again. `Fixed` requires that
 someone ran it and watched it work.
+
+## Field test feedback — 08 Sep 2026 (Tuesday), untriaged
+
+Raw feedback from Jaiveer's first live test of the app. Logged as reported; none of these
+have been root-caused yet. Move an item into "Shipping blockers" above once diagnosed.
+
+- **Moved pins on the floor map, didn't save** — pin positions changed during the session
+  were lost (no save happened, or save didn't persist).
+- **Missing "confidential paper" waste stream** — that waste stream option isn't available
+  when configuring a station.
+- **Unclear how to rename a station** — no obvious way to rename a station once created.
+- **Can't export with pictures — file too large** — export fails when photos are attached
+  (likely related to blocker 03's size guard, but reported as a hard failure, not a warned
+  confirmation).
+- **Can't add a photo to a station/gateway/display from the camera roll** — the photo picker
+  only offers "take a picture," no option to select an existing photo from the camera roll.
+- **Pin placement on the floor map is difficult / sometimes buggy** — general friction and
+  intermittent misbehavior placing pins (may overlap with blocker 05 and the positioning
+  subsystem's known offset/pan issues).
+- **Exported floor map with bins doesn't match the in-app floor map** — the bin layout in
+  the exported map differs from what's shown in the app.
+- **Pins on the map disappeared** — pins that had been placed were later gone from the
+  floor map view.
