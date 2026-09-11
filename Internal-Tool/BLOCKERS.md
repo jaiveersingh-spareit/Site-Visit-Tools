@@ -139,18 +139,89 @@ Carried from `../_Knowledge/02_Bug_Patterns_And_Fixes.md` and `04_Architecture_A
   `Archive/`, `.env.example`) are still untracked. The docs elsewhere in this project
   still say there is no version control; they are out of date.
 
-## Positioning subsystem — open items
+## Positioning subsystem — RESOLVED 11 Sep 2026 (code), UNVERIFIED IN FIELD
 
-From `../_Knowledge/01_Coordinate_And_Pin_System.md`. Relevant if pin accuracy becomes a
-field complaint:
+From `../_Knowledge/01_Coordinate_And_Pin_System.md`, originally logged as:
 
-- A constant **37.7px Y offset** (X error exactly 0) — never resolved.
+- A constant 37.7px Y offset (X error exactly 0) — never resolved.
 - A 0%-tap-accuracy aspect-ratio transposition with no recorded follow-up.
 - ~11.5px of pan at zoom 1.0, where there should be none.
-- `displayedWidth` is defined three incompatible ways across the code, so pan bounds and
-  render can disagree on non-square images.
-- `renderPins()` and `updateFloorPlanTransform()` may both apply the pan — a possible
-  double-apply that no document reconciles.
+- `displayedWidth` defined three incompatible ways across the code.
+- `renderPins()` and `updateFloorPlanTransform()` possibly double-applying pan.
+
+### Root cause (confirmed by direct measurement, not just code reading)
+
+`updateDisplayDimensions()` and `updateFloorPlanTransform()` both sized the floor plan
+image **height-first**: `displayHeight = containerHeight; displayWidth = displayHeight *
+aspectRatio`. For any image relatively wider than the container's own aspect ratio — the
+common case for a portrait floor plan inside this app's tall, narrow container (`75vh`
+tall on a phone) — that formula produces a width WIDER than the container. `#plan-img`'s
+CSS (`max-width:100%`) then silently clamped the actual rendered width back down, with
+no `object-fit` rule to preserve aspect ratio under that clamp — non-uniformly squishing
+the image. Every pin and tap calculation used the un-clamped (wrong, wider) width the JS
+had computed, while the screen showed the clamped (different, narrower) box. This was
+never a subtle rounding error: measured directly (see Testing below), the two boxes
+differed enough to put tap coordinates up to 88 percentage points off from where the
+screen actually showed the image.
+
+This single mechanism is a better, more direct explanation for the field-reported "pin
+placement is difficult/buggy" and "exported map doesn't match the app" than the vaguer
+prior theories — and it would have affected the real MFS Luxembourg visit too: its floor
+plan images (aspect ≈0.77) are exactly the shape that triggers the clamp on a typical
+phone container (aspect ≈0.57–0.60).
+
+### Fix
+
+Added one shared `computeImageFit(containerWidth, containerHeight, aspectRatio)` —
+proper `object-fit:contain`-equivalent math that picks whichever axis actually binds and
+returns the letterbox offset on the other axis. `updateDisplayDimensions()` and
+`updateFloorPlanTransform()` now both call it (removing the "three incompatible
+definitions" problem structurally, not just patching each one separately), and
+`updateFloorPlanTransform()` now caches `baseContainerWidth` as well as
+`baseContainerHeight` (it previously cached only height, which — caught while testing
+this exact fix — fed `computeImageFit()` a container width of 0 and briefly sized the
+image at 0px). The image is now absolutely positioned within the container using the
+computed letterbox offset, and every consumer of image coordinates (`renderPins()`,
+`showTapHighlight()`, `handlePlanTap()`) adds or subtracts that same offset. Pan/zoom
+were already removed from this app (see code comments); nothing here relies on
+horizontal or vertical scrolling of an oversized image anymore, since the image now
+always fits fully inside the container.
+
+### Testing (this is the "perform a test as well" part)
+
+Reasoning about this from static code wasn't enough — two earlier read-the-code theories
+this session turned out to be wrong. So it was verified with an actual headless-browser
+test (Playwright + the real Chromium binary already in this sandbox), loading the real
+app file, injecting a floor with a synthetic floor-plan image, and measuring:
+
+1. **Ground truth**: the browser's own `getBoundingClientRect()` on `#plan-img` — the
+   real, rendered box, not a JS-computed guess.
+2. **Round-trip accuracy**: called `handlePlanTap()` directly at a screen point computed
+   as a known fraction of that real box, then compared the resulting stored pin
+   percentage against the fraction that was tapped.
+3. **Render accuracy**: placed a station at a known x%/y%, rendered it, and measured
+   where its pin actually landed on screen (accounting for the CSS
+   `translate(-50%,-100%)` anchor) against the expected screen position.
+
+Run across 3 viewport sizes (390×844, 414×896, 768×1024 — phone through tablet) × 2
+deliberately extreme image aspect ratios (0.667 portrait, 1.714 landscape) × 4 tap points
+per combination, including near-edge taps (10%/90%) where an offset bug bites hardest:
+
+- **Before the fix:** errors up to 88 percentage points (tap and render both wrong,
+  consistent with each other but both disagreeing with the real screen).
+- **After the fix:** worst error across all 24 test cases was 0.01 percentage points —
+  floating-point noise, not a real discrepancy. Render accuracy (pin anchor position)
+  matched expected screen position to within 0.01px.
+
+The test script isn't checked into the repo (it depends on a headless-browser setup not
+normally available on the field-visit devices) — reproducible from this session's log if
+needed again, and worth turning into a proper regression test before the next release if
+this positioning code changes again.
+
+**Status: fixed in code, `Unverified` in the field** — the Playwright test proves the
+math is now internally consistent with what a browser actually renders; it does not
+replace someone opening the real app on a real phone with a real floor plan and confirming
+pin placement feels right, per this file's own rule.
 
 ## Rules for this file
 
@@ -168,15 +239,25 @@ Evidence below is what the exports and screenshots actually show — not yet a c
 root cause. Move an item into "Shipping blockers" above once the code is read and a cause
 is confirmed.
 
+### CORRECTION — 11 Sep 2026
+
+The "Pins disappeared / moved pins didn't save" entry originally here claimed the export
+was missing a pin (an "extra blue pin labeled 1" visible in a screenshot). Re-examined by
+zooming into the actual screenshot: that "extra pin" is the yellow **GW1** gateway pin,
+sitting almost exactly behind the purple D1 display pin (0.4% apart in X) — it just looks
+like a sliver of a different, unaccounted-for pin at a glance. All 7 pins (A, B, C, D, E,
+GW1, D1) are present and correct in both exports. **There was no missing pin, and this
+item is not confirmed by any evidence** — only the final export was available, not a
+before/after snapshot, so nothing shows a pin existing and then vanishing. Leaving this
+correction in place rather than deleting the original claim, per this file's own rule
+about not quietly erasing a wrong entry.
+
+The `persist()` silent-failure fix (see the "Code dive" section below) is still a
+legitimate, independently-worth-having fix — a storage-quota failure should never be
+invisible — but it is a plausible explanation for a reported symptom, not a confirmed one.
+
 ### Confirmed by the exported data
 
-- **Pins disappeared / moved pins didn't save.** One screenshot shows an extra blue pin
-  labeled "1" near station B / display D1 that does **not** appear in either export's pin
-  table (`Floor Plan Pins` / `Field Notes` both list only A, B, C, D, E, GW1, D1 — seven
-  pins, not eight). Something placed in-app did not survive to export. This is the same
-  shape of failure as blocker 05 (Add Station/Gateway/Display leaves a pin stuck in a
-  pending/positioning state) — plausibly the same underlying bug, seen live for the first
-  time.
 - **Can't export with pictures.** Both exports read `Photos Exported: 0 photos`, and every
   row's `Photo Filename` column is blank. No photos reached either export — not a
   size-warning path, a total absence. Consistent with (and possibly explains) the
@@ -199,22 +280,23 @@ is confirmed.
 
 ### Reported, not yet confirmed against data
 
-- **Unclear how to rename a station.** Stations A and B show real names ("Cuisine",
-  "Printing area"); C, D, E still show their raw letter as the location name. Ambiguous
-  from the data alone whether rename is broken/undiscoverable or these three were
-  deliberately left as unnamed open spaces (their notes say individual bins should be
-  consolidated) — needs a code check.
-- **Can't add a photo to a station/gateway/display from the camera roll** — picker only
-  offers "take a picture." Can't verify from the exports (zero photos either way), but
-  consistent with the zero-photos finding above.
-- **Pin placement on the floor map is difficult / sometimes buggy** — general friction and
-  intermittent misbehavior placing pins. May overlap with blocker 05 and the positioning
-  subsystem's known offset/pan issues (see "Positioning subsystem" below).
-- **Exported floor map with bins doesn't match the in-app floor map.** The coordinate data
-  itself is internally consistent between both export formats (same X/Y to 2 decimals),
-  so this isn't a coordinate-transform mismatch — the missing "1" pin above is itself an
-  app-vs-export mismatch, just not the coordinate kind this item may have meant. Needs
-  clarification on what exactly looked different.
+- **Moved pins on the floor map didn't save / pins disappeared.** No direct evidence
+  either way (see the CORRECTION above — the "missing pin" this was originally tied to
+  wasn't actually missing). `persist()`'s silent-failure fix and the positioning subsystem
+  fix (both below) are plausible contributors if either ever manifested, but neither is
+  confirmed as the specific cause of what was reported here.
+- **Unclear how to rename a station — RESOLVED 11 Sep 2026 (code).** Turned out to be a
+  genuine gap, not ambiguous data: Gateway and Display both already supported renaming
+  after creation; Station never did. Fixed by adding an inline rename field. See "Code
+  dive" section below.
+- **Can't add a photo to a station/gateway/display from the camera roll — RESOLVED 11 Sep
+  2026 (code).** `capture="environment"` on the photo inputs forced camera-only. Fixed by
+  removing it. See "Code dive" section below.
+- **Pin placement on the floor map is difficult / sometimes buggy — RESOLVED 11 Sep 2026
+  (code), see "Positioning subsystem" below.** Root cause found and fixed: a real
+  coordinate bug, not general flakiness.
+- **Exported floor map with bins doesn't match the in-app floor map — RESOLVED 11 Sep 2026
+  (code), see "Design decision" and "Positioning subsystem" sections below.**
 
 ### Working hypothesis for the code dive
 
@@ -282,13 +364,17 @@ work on a phone.**
 
 ### Pathway forward
 
-1. Get these four fixes in front of a phone, on a real floor plan, before the next
+1. Get all six fixes (the original four, plus the pin-rendering and positioning-subsystem
+   fixes below) in front of a phone, on a real floor plan, before the next
    Luxembourg-style visit — mark each `RESOLVED <date>` here once someone's watched it
    work, per this file's rule.
-2. Decide the export-schema consolidation and the pin-anchoring question above as design
-   calls, then fix both in one pass so they don't diverge again.
+2. Decide the export-schema consolidation (still open, see below) as a design call, then
+   fix it in one pass.
 3. Re-run this same evidence-vs-feedback method on the next field test: pull the exports,
    diff against what was reported, before opening the code.
+4. Consider turning the Playwright positioning test (see "Positioning subsystem" below)
+   into a real regression test, so a future change to the coordinate pipeline gets caught
+   before it ships, not after the next field visit.
 
 ## Design decision — pin rendering (live app vs. export), 11 Sep 2026
 

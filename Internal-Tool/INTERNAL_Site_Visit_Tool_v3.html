@@ -1410,6 +1410,41 @@ let floorPlanDisplayState = {
   lastUpdated: 0
 };
 
+// ── SHARED FIT MATH ──────────────────────────────────────────────────────
+// Fits an image of the given aspect ratio fully inside a container box —
+// same idea as CSS object-fit:contain — binding whichever axis the image's
+// aspect ratio requires and reporting the letterbox offset on the other axis.
+// This used to be computed three times (updateDisplayDimensions(),
+// updateFloorPlanTransform(), and the disabled test-mode display), always
+// height-first with no check against the container's own aspect ratio. For
+// any image relatively wider than the container — the common case for a
+// portrait floor plan inside this app's tall, narrow 75vh container on a
+// phone — that produced a display width WIDER than the container, which
+// #plan-img's CSS max-width:100% then silently clamped back down without
+// preserving aspect ratio, squishing the image. Every pin and tap
+// calculation was computed against the un-clamped (wrong) width, while the
+// screen showed the clamped (different) box — a real, measured mismatch,
+// not just a cosmetic one. Fixing it here, once, so every caller agrees.
+function computeImageFit(containerWidth, containerHeight, aspectRatio){
+  const containerAspect = containerWidth / containerHeight;
+  let displayWidth, displayHeight;
+  if (aspectRatio > containerAspect){
+    // Image is relatively wider than the container: width-bound, letterbox top/bottom
+    displayWidth = containerWidth;
+    displayHeight = containerWidth / aspectRatio;
+  } else {
+    // Image is relatively taller than the container: height-bound, letterbox left/right
+    displayHeight = containerHeight;
+    displayWidth = containerHeight * aspectRatio;
+  }
+  return {
+    displayWidth,
+    displayHeight,
+    offsetX: (containerWidth - displayWidth) / 2,
+    offsetY: (containerHeight - displayHeight) / 2,
+  };
+}
+
 // Calculate and cache display dimensions for consistent coordinate math
 function updateDisplayDimensions() {
   const container = document.getElementById('plan-container');
@@ -1439,8 +1474,7 @@ function updateDisplayDimensions() {
   }
 
   const aspectRatio = imgNatWidth / imgNatHeight;
-  const displayHeight = baseContainerHeight * 1 /* zoom removed */;
-  const displayWidth = displayHeight * aspectRatio; // Maintain aspect ratio
+  const fit = computeImageFit(baseContainerWidth, baseContainerHeight, aspectRatio);
 
   floorPlanDisplayState = {
     containerWidth: baseContainerWidth,
@@ -1448,8 +1482,10 @@ function updateDisplayDimensions() {
     imageNaturalWidth: imgNatWidth,
     imageNaturalHeight: imgNatHeight,
     imageAspectRatio: aspectRatio,
-    displayedWidth: displayWidth,
-    displayedHeight: displayHeight,
+    displayedWidth: fit.displayWidth,
+    displayedHeight: fit.displayHeight,
+    offsetX: fit.offsetX,
+    offsetY: fit.offsetY,
     lastUpdated: Date.now()
   };
 
@@ -2955,26 +2991,43 @@ function updateFloorPlanTransform(){
   const pins = document.getElementById('plan-pins');
 
   if(container && img){
-    // ── CRITICAL: Use cached baseContainerHeight for consistency ──
-    // Initialize cache on first call if needed
-    if(baseContainerHeight === 0){
+    // ── CRITICAL: Use cached baseContainerWidth/Height for consistency ──
+    // Initialize cache on first call if needed. This must cache BOTH dimensions —
+    // computeImageFit() needs the container's own aspect ratio (width AND height)
+    // to decide which axis binds, not just height. Caching only height here (as
+    // this used to) left baseContainerWidth at its initial 0 whenever this
+    // function ran first (it does, via the image's onload, before anything else
+    // has called updateDisplayDimensions()), which fed computeImageFit() a 0
+    // container width and sized the image at 0px wide.
+    if(baseContainerWidth === 0 || baseContainerHeight === 0){
       const containerRect = container.getBoundingClientRect();
+      baseContainerWidth = containerRect.width;
       baseContainerHeight = containerRect.height;
     }
 
-    if(baseContainerHeight > 0 && img.naturalWidth && img.naturalHeight){
-      // Use HEIGHT-FIRST sizing to maintain consistency with coordinate math
-      const displayHeight = baseContainerHeight * 1 /* zoom removed */;
+    if(baseContainerWidth > 0 && baseContainerHeight > 0 && img.naturalWidth && img.naturalHeight){
+      // Fit the image fully within the container (whichever axis binds), via the
+      // same computeImageFit() helper updateDisplayDimensions() uses — see that
+      // function's comment for why the old height-first-always formula was wrong.
       const aspectRatio = img.naturalWidth / img.naturalHeight;
-      const displayWidth = displayHeight * aspectRatio;
+      const fit = computeImageFit(baseContainerWidth, baseContainerHeight, aspectRatio);
+      const displayWidth = fit.displayWidth;
+      const displayHeight = fit.displayHeight;
 
-      // Apply both width and height explicitly
+      // Apply width/height explicitly, and position with the letterbox offset so
+      // the image is centered in the container on whichever axis has slack —
+      // #plan-pins (and every pin/tap calculation) assumes this same offset.
+      img.style.position = 'absolute';
+      img.style.left = fit.offsetX + 'px';
+      img.style.top = fit.offsetY + 'px';
       img.style.width = displayWidth + 'px';
       img.style.height = displayHeight + 'px';
 
-      // ── NEW APPROACH: No centering, no pan - use native scrolling ──
-      // Image scales with zoom and fills the container from edge to edge
-      // Users scroll naturally to navigate the zoomed image
+      // ── NO PAN, NO ZOOM ──
+      // The image now always fits inside the container, so there is nothing to
+      // scroll to — no more relying on native horizontal scroll for an
+      // oversized image (that scroll was silently defeated by max-width:100%
+      // anyway; see computeImageFit()'s comment).
       img.style.transform = 'none';
 
       // Check if scrolling is possible
@@ -3294,7 +3347,7 @@ function showTapHighlight(imagePercentX, imagePercentY){
   validateDisplayDimensions();
 
   // Get cached display dimensions
-  const { displayedWidth, displayedHeight } = floorPlanDisplayState;
+  const { displayedWidth, displayedHeight, offsetX = 0, offsetY = 0 } = floorPlanDisplayState;
 
   // Get current scroll position
   const planContainer = document.getElementById('plan-container');
@@ -3304,8 +3357,8 @@ function showTapHighlight(imagePercentX, imagePercentY){
   // Convert from image percentage to displayed space
   const imageFractionX = imagePercentX / 100;
   const imageFractionY = imagePercentY / 100;
-  const displayedX = imageFractionX * displayedWidth;
-  const displayedY = imageFractionY * displayedHeight;
+  const displayedX = offsetX + imageFractionX * displayedWidth;
+  const displayedY = offsetY + imageFractionY * displayedHeight;
 
   // ── POSITION IN IMAGE SPACE (not viewport space) ──
   // This way, the pending pin naturally scrolls with the floor plan
@@ -3400,7 +3453,7 @@ function renderPins(){
   validateDisplayDimensions();
 
   // Get cached display dimensions
-  const { displayedWidth, displayedHeight } = floorPlanDisplayState;
+  const { displayedWidth, displayedHeight, offsetX = 0, offsetY = 0 } = floorPlanDisplayState;
 
   // Get current scroll position
   const planContainer = document.getElementById('plan-container');
@@ -3430,9 +3483,11 @@ function renderPins(){
     const imageFractionX = st.x / 100;
     const imageFractionY = st.y / 100;
 
-    // Position in displayed (zoomed) image coordinates
-    const displayedX = imageFractionX * displayedWidth;
-    const displayedY = imageFractionY * displayedHeight;
+    // Position in displayed image coordinates, offset by the image's letterbox
+    // position within the container (see computeImageFit()) so the pin lands on
+    // the actual image content, not on the container's raw top-left corner.
+    const displayedX = offsetX + imageFractionX * displayedWidth;
+    const displayedY = offsetY + imageFractionY * displayedHeight;
 
     // ── IMAGE-SPACE POSITIONING ──
     // Position in image space (no scroll offset)
@@ -3455,8 +3510,8 @@ function renderPins(){
 
     const imageFractionX = gw.x / 100;
     const imageFractionY = gw.y / 100;
-    const displayedX = imageFractionX * displayedWidth;
-    const displayedY = imageFractionY * displayedHeight;
+    const displayedX = offsetX + imageFractionX * displayedWidth;
+    const displayedY = offsetY + imageFractionY * displayedHeight;
 
     html += `<div class="plan-pin" id="pin-gw-${gw.id}" data-type="gateway" data-id="${gw.id}" style="left:${displayedX}px;top:${displayedY}px" onclick="openGateway('${gw.id}')" >
       <div class="pin-bubble gateway">${gw.label}</div>
@@ -3470,8 +3525,8 @@ function renderPins(){
 
     const imageFractionX = d.x / 100;
     const imageFractionY = d.y / 100;
-    const displayedX = imageFractionX * displayedWidth;
-    const displayedY = imageFractionY * displayedHeight;
+    const displayedX = offsetX + imageFractionX * displayedWidth;
+    const displayedY = offsetY + imageFractionY * displayedHeight;
 
     html += `<div class="plan-pin" id="pin-ds-${d.id}" data-type="display" data-id="${d.id}" style="left:${displayedX}px;top:${displayedY}px" onclick="openDisplay('${d.id}')" >
       <div class="pin-bubble display">${d.label}</div>
@@ -4015,6 +4070,8 @@ function handlePlanTap(e){
   const imgHeight = floorPlanDisplayState.imageNaturalHeight;
   const displayedWidth = floorPlanDisplayState.displayedWidth;
   const displayedHeight = floorPlanDisplayState.displayedHeight;
+  const offsetX = floorPlanDisplayState.offsetX || 0;
+  const offsetY = floorPlanDisplayState.offsetY || 0;
 
   // CRITICAL DEBUG: Log all parameters with cached state
   console.log('[PLAN TAP] Coordinate calculation (using cached dimensions):', {
@@ -4044,9 +4101,12 @@ function handlePlanTap(e){
   const scrollTop = planContainer ? planContainer.scrollTop : 0;
 
   // Convert tap position from viewport to image space
-  // Formula: position_in_image = position_in_viewport + scroll_offset
-  let imageScreenX = containerX + scrollLeft;
-  let imageScreenY = containerY + scrollTop;
+  // Formula: position_in_image = position_in_viewport + scroll_offset - letterbox_offset
+  // (letterbox offset: see computeImageFit() — the image can sit inset within the
+  // container on one axis, and a raw tap position must subtract that inset before
+  // scaling by the image's own displayed size, or every tap lands off by that offset)
+  let imageScreenX = containerX + scrollLeft - offsetX;
+  let imageScreenY = containerY + scrollTop - offsetY;
 
   // Scale from display space to image pixel space
   // Use displayedWidth/Height (not imgRect) for consistency
