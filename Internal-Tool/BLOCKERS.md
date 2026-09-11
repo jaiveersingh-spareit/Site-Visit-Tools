@@ -222,3 +222,74 @@ Three of the eight items (disappeared pin, unsaved pin move, and possibly the mi
 photos) point at the same place: whatever happens to a pin or attachment between
 placement/reposition and the data that export reads from. Worth tracing that save/persist
 path first, rather than treating these as eight unrelated bugs.
+
+## Code dive — 11 Sep 2026, in response to MFS Luxembourg feedback
+
+Traced the working hypothesis from the field-test section above (pin/attachment
+save-persist path) through the actual code. Four root causes were found and fixed;
+three more were diagnosed but deliberately left alone this round. **All four fixes are
+code-only — `Unverified` in the field per this file's own rule until someone watches them
+work on a phone.**
+
+### Fixed in code today
+
+- **Camera roll photo picker.** `st-photo-input`, `gw-photo-input`, and
+  `display-photo-input` all had `capture="environment"` on their `<input type="file">`,
+  which forces mobile browsers to open the camera directly and skip the photo-library
+  option entirely — exactly the reported symptom. The context-photo inputs never had this
+  attribute and were unaffected. **Fix:** removed `capture="environment"` from all three;
+  the native file picker now offers camera *and* library, same as context photos.
+- **No way to rename a station.** Gateway (`saveGatewayRename()` + modal) and Display
+  (`saveDisplay()`, inline field) both already supported renaming after creation. Station
+  never did — `st.name` was set once in the creation modal and had no editable field
+  anywhere in the station detail view. This was a genuine missing feature, not a
+  discoverability problem. **Fix:** added an inline "Station Name" field to the station
+  detail screen (`st-name`, mirroring Display's pattern exactly) and a `saveStationName()`
+  function that persists and re-renders, wired into `openStation()`.
+- **Missing "Confidential Paper" waste stream.** `WASTE_STREAMS` listed 12 streams with no
+  confidential-paper option, forcing the free-text-note workaround seen in the MFS export.
+  **Fix:** added `'Confidential Paper':'CP'` to `WASTE_STREAMS`.
+- **`persist()` silently swallowed every save failure.** `catch(e){}` on the
+  `localStorage.setItem` call meant that once storage filled up (base64 station/gateway/
+  display photos are the obvious way this happens on a real multi-station visit), *every*
+  subsequent pin move, rename, or note edit failed to save with zero feedback — the app
+  looked fully functional while nothing after that point was being written. This is the
+  single best explanation for "moved pins didn't save" and "pins disappeared": a pin
+  placed or repositioned after the quota was hit would exist correctly in memory for the
+  rest of the session, render normally, and then vanish the moment the page reloaded or
+  was reopened — because it was never actually in `localStorage` to begin with. **Fix:**
+  `persist()` now catches the failure, logs it, and shows a persistent red banner telling
+  the user storage is full and to export immediately — instead of failing invisibly. This
+  doesn't remove the storage ceiling (blocker 04, already tracked above) but it turns a
+  silent data-loss bug into a visible, actionable warning.
+
+### Diagnosed, deliberately not touched this round
+
+- **Two export code paths, two schemas** (`doExportExcel()`/`buildAndDownloadExcel()` vs.
+  `exportZipWithFloorPlans()`). Real fix is consolidating both onto one shared
+  workbook-builder function; that's a refactor, not a one-line change, and risks breaking
+  whichever export path isn't being actively tested — deferred rather than rushed.
+- **Exported floor map doesn't match the in-app floor map.** Partial explanation found:
+  the live app (`renderPins()`) draws each pin as a teardrop bubble-and-tail anchored
+  *above* its coordinate, while the export (`renderFloorPlanWithPins()`) draws a plain
+  circle centered exactly *on* the coordinate — a real visual-anchoring difference between
+  the two renderers. This compounds with the already-tracked, still-open Positioning
+  subsystem issues below (37.7px Y offset, possible pan double-apply), which affect the
+  live view but not the export's from-scratch canvas math. Not fixed today — needs a
+  decision on which anchoring is "correct" before either renderer is changed.
+- **No drag-to-move affordance.** `handlePlanTap()` explicitly ignores taps on an existing
+  pin ("pin editing disabled"). Repositioning only works through the dedicated **📍 Move
+  Pin** button on the station/gateway/display detail screen — a real, working feature, but
+  easy to miss if a user's instinct is to drag the pin directly, which does nothing and
+  gives no error. Worth a UX pass (e.g., tapping a pin opens its detail view instead of
+  being a dead tap), not a code bug — left alone this round.
+
+### Pathway forward
+
+1. Get these four fixes in front of a phone, on a real floor plan, before the next
+   Luxembourg-style visit — mark each `RESOLVED <date>` here once someone's watched it
+   work, per this file's rule.
+2. Decide the export-schema consolidation and the pin-anchoring question above as design
+   calls, then fix both in one pass so they don't diverge again.
+3. Re-run this same evidence-vs-feedback method on the next field test: pull the exports,
+   diff against what was reported, before opening the code.

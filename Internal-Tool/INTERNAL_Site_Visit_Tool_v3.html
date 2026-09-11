@@ -870,6 +870,11 @@
 
   <div class="accent-bar"></div>
 
+  <div class="sec-label">Station Name</div>
+  <div class="card" style="padding:12px;">
+    <input type="text" id="st-name" placeholder="e.g. L1 - Condiment, B1 - BOH, E1 - Beverage" maxlength="50" oninput="saveStationName()" />
+  </div>
+
   <div class="sec-label">Signage Present?</div>
   <div class="card" style="padding:12px;">
     <div class="toggle-row" id="signage-btns">
@@ -881,7 +886,7 @@
 
   <div class="sec-label">Station Photos <span id="st-photo-count" style="font-size:12px;color:var(--muted);font-weight:400;">(0)</span></div>
   <div class="card" style="padding:12px;">
-    <input type="file" id="st-photo-input" accept="image/*" capture="environment" style="display:none" onchange="handleStationPhoto(event)" />
+    <input type="file" id="st-photo-input" accept="image/*" style="display:none" onchange="handleStationPhoto(event)" />
     <button class="btn btn-ghost" onclick="document.getElementById('st-photo-input').click()">📷 Add Photo</button>
     <div id="st-carousel" style="position:relative;margin-top:12px;display:none;border-radius:12px;overflow:hidden;background:#f0f0f0;">
       <img id="st-photo-prev" class="photo-prev" style="display:block;margin:0;border-radius:0;width:100%;max-height:240px;object-fit:cover;" alt="Station photo" />
@@ -947,7 +952,7 @@
 
   <div class="sec-label">Gateway Photo</div>
   <div class="card" style="padding:12px;">
-    <input type="file" id="gw-photo-input" accept="image/*" capture="environment" style="display:none" onchange="handleGwPhoto(event)" />
+    <input type="file" id="gw-photo-input" accept="image/*" style="display:none" onchange="handleGwPhoto(event)" />
     <button class="btn btn-ghost" onclick="document.getElementById('gw-photo-input').click()">📷 Take / Upload Photo</button>
     <img id="gw-photo-prev" class="photo-prev" style="display:none" alt="Gateway photo" />
     <div id="gw-photo-name" style="font-size:11px;color:var(--muted);margin-top:5px;font-weight:600;"></div>
@@ -995,7 +1000,7 @@
 
   <div class="sec-label">Display Photo</div>
   <div class="card" style="padding:12px;">
-    <input type="file" id="display-photo-input" accept="image/*" capture="environment" style="display:none" onchange="handleDisplayPhoto(event)" />
+    <input type="file" id="display-photo-input" accept="image/*" style="display:none" onchange="handleDisplayPhoto(event)" />
     <button class="btn btn-ghost" onclick="document.getElementById('display-photo-input').click()">📷 Take / Upload Photo</button>
     <img id="display-photo-prev" class="photo-prev" style="display:none" alt="Display photo" />
     <div id="display-photo-name" style="font-size:11px;color:var(--muted);margin-top:5px;font-weight:600;"></div>
@@ -1457,7 +1462,26 @@ function persist(){
   try{
     localStorage.setItem(LS,JSON.stringify(S));
     showSaveIndicator();
-  }catch(e){}
+    const failBanner=document.getElementById('save-failed-banner');
+    if(failBanner) failBanner.remove();
+  }catch(e){
+    // Previously silently swallowed. A full localStorage quota (large photo
+    // payloads are the usual cause) meant every station rename, pin move, and
+    // photo add after this point failed with zero feedback — the app looked
+    // like it was working while nothing was actually being saved.
+    console.error('[PERSIST] Save to localStorage failed:', e);
+    showSaveFailedBanner();
+  }
+}
+function showSaveFailedBanner(){
+  let b=document.getElementById('save-failed-banner');
+  if(!b){
+    b=document.createElement('div');
+    b.id='save-failed-banner';
+    b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#c62828;color:#fff;padding:10px 14px;font-size:13px;font-weight:600;text-align:center;';
+    b.textContent='⚠️ Not saved — device storage is full. Export your data now (Export menu) before closing the app, then free up space.';
+    document.body.appendChild(b);
+  }
 }
 function showSaveIndicator(){
   let ind=document.getElementById('save-indicator');
@@ -1883,7 +1907,7 @@ function isLetterUsed(letter){
 const WASTE_STREAMS={
   'Trash':'T','Recycling':'R','Paper/Cardboard':'P','Compost':'C','Glass':'G',
   'Plastics':'PL','Food Share':'FS','Plastic Bottles':'PB','Metals':'M',
-  'e-Waste':'E','Biohazard':'BH','Coffee Cups':'CC'
+  'e-Waste':'E','Biohazard':'BH','Coffee Cups':'CC','Confidential Paper':'CP'
 };
 const SCALE_ABBREV={Large:'l',Medium:'m',Small:'s'};
 const ACCESSORY_CODES={'Bag':'w','Button':'q','Bottom Plate':'z','Top Plate':'a','Strap':'x','LOKSAK Bag':'w'};
@@ -5240,6 +5264,7 @@ function openStation(id){
   curStationId=id; stPhotoIdx=0; const st=gSt(), f=gF();
   document.getElementById('hdr-station').textContent='Station '+st.letter;
   document.getElementById('hdr-station-sub').textContent=st.name+' · Floor '+f.number;
+  document.getElementById('st-name').value=st.name||'';
   refreshSignage(st.signage);
   document.getElementById('st-notes').value=st.notes||'';;
 
@@ -5285,6 +5310,13 @@ function cycleStationPhoto(dir){
   stPhotoIdx=(stPhotoIdx+dir+photos.length)%photos.length;
   document.getElementById('st-photo-prev').src=photos[stPhotoIdx].data;
   document.getElementById('st-photo-counter').textContent=(stPhotoIdx+1)+' / '+photos.length;
+}
+function saveStationName(){
+  const st=gSt(); if(!st) return;
+  st.name=document.getElementById('st-name').value.trim();
+  persist();
+  document.getElementById('hdr-station-sub').textContent=st.name+' · Floor '+gF().number;
+  renderStations();
 }
 function deleteStation(){
   if(!confirm('Delete this station and all its bins?')) return;
