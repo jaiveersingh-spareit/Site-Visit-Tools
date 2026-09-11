@@ -269,14 +269,10 @@ work on a phone.**
   `exportZipWithFloorPlans()`). Real fix is consolidating both onto one shared
   workbook-builder function; that's a refactor, not a one-line change, and risks breaking
   whichever export path isn't being actively tested — deferred rather than rushed.
-- **Exported floor map doesn't match the in-app floor map.** Partial explanation found:
-  the live app (`renderPins()`) draws each pin as a teardrop bubble-and-tail anchored
-  *above* its coordinate, while the export (`renderFloorPlanWithPins()`) draws a plain
-  circle centered exactly *on* the coordinate — a real visual-anchoring difference between
-  the two renderers. This compounds with the already-tracked, still-open Positioning
-  subsystem issues below (37.7px Y offset, possible pan double-apply), which affect the
-  live view but not the export's from-scratch canvas math. Not fixed today — needs a
-  decision on which anchoring is "correct" before either renderer is changed.
+- **Exported floor map doesn't match the in-app floor map — RESOLVED 11 Sep 2026 (code),
+  see "Design decision" section below.** Was diagnosed here as an open question; settled
+  and fixed the same day by testing directly against the real MFS Luxembourg export data
+  rather than reasoning about it in the abstract.
 - **No drag-to-move affordance.** `handlePlanTap()` explicitly ignores taps on an existing
   pin ("pin editing disabled"). Repositioning only works through the dedicated **📍 Move
   Pin** button on the station/gateway/display detail screen — a real, working feature, but
@@ -293,3 +289,46 @@ work on a phone.**
    calls, then fix both in one pass so they don't diverge again.
 3. Re-run this same evidence-vs-feedback method on the next field test: pull the exports,
    diff against what was reported, before opening the code.
+
+## Design decision — pin rendering (live app vs. export), 11 Sep 2026
+
+Follow-up to the "exported floor map doesn't match in-app floor map" item above. Rather
+than reasoning about the CSS and canvas code in the abstract, tested directly: plotted the
+real MFS Luxembourg export's stored X%/Y% coordinates (from `Site_Visit_Data.xlsx`,
+`Floor Plan Pins` sheet) as plain crosshairs onto both of the visit's floor-plan
+screenshots. New reusable tool for this: `Internal-Tool/tools/verify_pins_on_floorplan.py`
+— point it at any export + its floor plan image and it overlays the stored pins so a
+"doesn't match" complaint can be checked against real coordinates in under a minute,
+instead of re-deriving this analysis from scratch each time.
+
+**Finding:** the crosshairs landed exactly on the true pin locations in both screenshots —
+dead center in one, and exactly at the tail tip of the teardrop marker in the other. That
+tail-tip alignment is not a coincidence: the live CSS (`.plan-pin { transform:
+translate(-50%,-100%); }`) is defined so that the stored x%/y% *is* the tail tip, by
+design. **The stored coordinate data was never wrong.** The perceived mismatch was two
+separate things, now disentangled:
+
+1. **A real, fixable bug (now fixed):** `renderFloorPlanWithPins()` (the export's canvas
+   renderer) drew a plain circle centered exactly on the coordinate, while the live app
+   draws a bubble sitting above the coordinate with a tail pointing down to it — same
+   anchor point, visibly different shape. It also colored displays blue (`#4A90E2`)
+   instead of the live app's actual purple (`#9C27B0`, `.pin-bubble.display`) — a second,
+   independent mismatch found the same way.
+2. **A separate, still-open issue (not touched):** the Positioning subsystem's known
+   37.7px Y offset and possible pan double-apply (see that section above) could still
+   shift the *live* view during interactive pan/zoom. That's a real bug, but it's about
+   the live renderer's screen math, not about the export, and it wasn't reproducible in
+   either static screenshot tested here.
+
+**Decision:** don't touch the live app's pin-anchor math (it's already correct, and
+"fixing" working code risks the Positioning subsystem's existing fragility) or the
+coordinate storage (also already correct). Instead, changed only the export's canvas
+drawer to render the same bubble-and-tail shape and the same colors as the live CSS
+(`.plan-pin` / `.pin-bubble` / `.pin-tail`, `INTERNAL_Site_Visit_Tool_v3.html` lines
+~507-529), so a printed export looks like what the auditor actually saw on the phone.
+This is a contained, canvas-only change with no effect on live rendering, storage, or the
+export's data content — same bins, same coordinates, same layout, just drawn to match.
+
+**Status: fixed in code, `Unverified` in the field** — needs someone to export a real
+multi-pin visit and compare the image against the phone, same rule as everything else in
+this file.

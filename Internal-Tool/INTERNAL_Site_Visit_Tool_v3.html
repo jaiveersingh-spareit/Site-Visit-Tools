@@ -3099,78 +3099,80 @@ function renderFloorPlanWithPins(floor, callback) {
     ctx.drawImage(img, 0, 0);
 
     // ── DRAW PINS ──
+    // Confirmed against real MFS Luxembourg export data (Sep 2026): plotting the raw
+    // x%/y% straight onto this image lands exactly on the live app's pin anchor point
+    // (the CSS pin uses transform:translate(-50%,-100%), so x%/y% IS the tail tip, not
+    // the bubble center). The stored coordinates were never the problem. What was wrong:
+    // this function drew a plain circle CENTERED on that point, while the live app draws
+    // a bubble sitting ABOVE the point with a tail pointing down to it — same anchor,
+    // different shape — so the two looked like they disagreed even though they didn't.
+    // Also: this used blue for displays; the live app's display color is purple
+    // (--purple / .pin-bubble.display: #9C27B0). Both fixed here to match the live
+    // .plan-pin / .pin-bubble / .pin-tail CSS (lines ~507-529) exactly, so a printed
+    // export looks like what the auditor actually saw on the phone.
     const PIN_RADIUS = Math.max(15, img.width * 0.02); // 2% of image width, min 15px
-    const FONT_SIZE = Math.max(12, img.width * 0.03); // 3% of image width, min 12px
+    const TAIL_LEN   = PIN_RADIUS * 0.55;              // matches CSS .pin-tail proportion
+    const FONT_SIZE  = Math.max(12, img.width * 0.03); // 3% of image width, min 12px
 
-    // Color scheme matching design language
+    // Color scheme matching the live CSS (--green/--green-dark, --yellow/--yellow-dark,
+    // and the display purple used by .pin-bubble.display — NOT the blue this used to be)
     const colors = {
-      station: '#34A853',   // Green
-      gateway: '#FFD600',   // Yellow
-      display: '#4A90E2'    // Blue
+      station: { fill: '#34A853', tail: '#278041', text: '#FFFFFF' },
+      gateway: { fill: '#FFD600', tail: '#B89A00', text: '#2A2A2A' },
+      display: { fill: '#9C27B0', tail: '#7B1FA2', text: '#FFFFFF' },
     };
+
+    // Draws one map-pin: a rounded bubble sitting above (pixelX, pixelY) with a tail
+    // whose tip touches (pixelX, pixelY) exactly — mirrors .plan-pin's
+    // translate(-50%,-100%) anchor so the true coordinate is the tail tip, not the
+    // bubble center.
+    function drawPin(pixelX, pixelY, label, palette, fontScale){
+      const bubbleCenterY = pixelY - TAIL_LEN - PIN_RADIUS;
+
+      // Tail (drawn first, so the bubble overlaps its top cleanly)
+      ctx.fillStyle = palette.tail;
+      ctx.beginPath();
+      ctx.moveTo(pixelX - PIN_RADIUS * 0.3, bubbleCenterY + PIN_RADIUS * 0.85);
+      ctx.lineTo(pixelX + PIN_RADIUS * 0.3, bubbleCenterY + PIN_RADIUS * 0.85);
+      ctx.lineTo(pixelX, pixelY);
+      ctx.closePath();
+      ctx.fill();
+
+      // Bubble
+      ctx.fillStyle = palette.fill;
+      ctx.beginPath();
+      ctx.arc(pixelX, bubbleCenterY, PIN_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+      ctx.lineWidth = Math.max(1, PIN_RADIUS * 0.08);
+      ctx.stroke();
+
+      // Label
+      ctx.fillStyle = palette.text;
+      ctx.font = `bold ${FONT_SIZE * (fontScale || 1)}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, pixelX, bubbleCenterY);
+    }
 
     // Draw stations
     (floor.stations || []).forEach(st => {
       if (st.x !== null && st.y !== null) {
-        const pixelX = (st.x / 100) * img.width;
-        const pixelY = (st.y / 100) * img.height;
-
-        // Draw circle
-        ctx.fillStyle = colors.station;
-        ctx.beginPath();
-        ctx.arc(pixelX, pixelY, PIN_RADIUS, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Draw letter
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = `bold ${FONT_SIZE}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(st.letter, pixelX, pixelY);
+        drawPin((st.x / 100) * img.width, (st.y / 100) * img.height, st.letter, colors.station, 1);
       }
     });
 
     // Draw gateways
     (floor.gateways || []).forEach(gw => {
       if (gw.x !== null && gw.y !== null) {
-        const pixelX = (gw.x / 100) * img.width;
-        const pixelY = (gw.y / 100) * img.height;
-
-        // Draw circle
-        ctx.fillStyle = colors.gateway;
-        ctx.beginPath();
-        ctx.arc(pixelX, pixelY, PIN_RADIUS, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Draw label (GW1, GW2, etc.)
-        ctx.fillStyle = '#000000';
-        ctx.font = `bold ${FONT_SIZE * 0.8}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const gwLabel = gw.label.replace('GW', '');
-        ctx.fillText(gwLabel, pixelX, pixelY);
+        drawPin((gw.x / 100) * img.width, (gw.y / 100) * img.height, gw.label.replace('GW', ''), colors.gateway, 0.8);
       }
     });
 
     // Draw displays
     (floor.displays || []).forEach(d => {
       if (d.x !== null && d.y !== null) {
-        const pixelX = (d.x / 100) * img.width;
-        const pixelY = (d.y / 100) * img.height;
-
-        // Draw circle
-        ctx.fillStyle = colors.display;
-        ctx.beginPath();
-        ctx.arc(pixelX, pixelY, PIN_RADIUS, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Draw label (D1, D2, etc.)
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = `bold ${FONT_SIZE * 0.8}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const dLabel = d.label.replace('D', '');
-        ctx.fillText(dLabel, pixelX, pixelY);
+        drawPin((d.x / 100) * img.width, (d.y / 100) * img.height, d.label.replace('D', ''), colors.display, 0.8);
       }
     });
 
