@@ -418,3 +418,69 @@ export's data content — same bins, same coordinates, same layout, just drawn t
 **Status: fixed in code, `Unverified` in the field** — needs someone to export a real
 multi-pin visit and compare the image against the phone, same rule as everything else in
 this file.
+
+---
+
+## Backend sync — station photo storage-crash fix (12 Sep 2026)
+
+**Origin:** field testing hit the storage-full crash risk almost immediately — one
+station photo taken on a phone was enough to exhaust `localStorage` and trip the
+"Not saved" banner added earlier in this file (see "Silent save failures" above). Root
+cause traced further back: `resizeAndSaveImage()` (compression) is only ever called for
+the floor plan image; station/gateway/display photos go through `readAsDataURL()`
+straight into state at full camera resolution, no compression at all. A one-line
+compression fix would only raise the ceiling, not remove it, and a separate architecture
+review (`Backend Architecture Recommendation` doc, shared 11 Sep 2026, feasibility check
+from the 09 Jul 2026 "Vision Site Audit: Integration" meeting — Laurent, Romain, Lowell,
+Jaiveer) had already proposed the real fix: move photos off-device into Google Drive via
+an Apps Script backend, with Sheets as the structured-data store.
+
+**POC confirmed (12 Sep 2026):** built and deployed a standalone Apps Script Web App
+(`loadProject` GET, `syncFloor` POST) against a test Sheet + Drive folder, round-tripped
+via a standalone test client (not the production tool) — two test stations plus one
+photo written and read back cleanly. Full setup/history in
+`Internal-Tool/tools/apps_script_poc/SETUP_INSTRUCTIONS.md` alongside the deployed
+`Code.gs`.
+
+**First production integration (this change), feature-flagged via `SYNC_ENABLED`:**
+- On adding a station photo (`processStationPhotoData()`, both the direct-file and
+  HEIC/Safari data-URL branches), the photo now syncs to Drive immediately —
+  `syncStationPhotoToBackend()` — rather than waiting for any explicit "save" step.
+  Chosen over floor-level or save-triggered sync because station photos are the actual
+  and immediate cause of the crash; syncing anything less than "on add" leaves the
+  same-size payload sitting in local storage in the meantime.
+- On confirmed upload, the local base64 copy is evicted — replaced with the Drive
+  thumbnail link — which is what actually frees the storage; syncing without eviction
+  would not have helped at all.
+- On any failure (offline, network error, bad response), the local copy is left exactly
+  as it was — no data is ever lost, it just isn't freed until a later successful sync.
+
+**Regression caught before shipping, now fixed:** both export paths
+(`buildAndDownloadExcel()`, `exportZipWithFloorPlans()`) read `photo.data` expecting a
+real embeddable data URL, via `collectAllPhotos()`. An evicted photo's `data` is now a
+Drive link instead — undetected, this would have exported a broken image (or, for the
+anchor-`download` photo links, silently failed to download with the right filename,
+since the `download` attribute isn't honored across origins the way it is for a `data:`
+URL). Fixed by adding a `getPhoto` action to the Apps Script backend (returns the real
+bytes as base64) and a `resolvePhotoDataUrl()` step that re-fetches and reconstitutes a
+real data URL for any evicted photo before either export runs, falling back to the
+Drive link (degraded, not broken) if that re-fetch ever fails. `collectAllPhotos()` and
+both export functions are now `async` to support this.
+
+**Known limitations of this first slice (by design, not yet fixed):**
+- Only station photos sync; gateway/display photos and the floor plan image are
+  untouched (floor plan already goes through `resizeAndSaveImage()` and was never the
+  crash driver; gateway/display are one-per-item, much lower volume).
+- `collectAllPhotos()` re-fetches every evicted photo's bytes on every export, in
+  parallel, with no batching/throttling — fine at POC scale, would need chunking for a
+  building with many synced photos (same 6-minute Apps Script execution ceiling the
+  original architecture doc flagged for photo uploads).
+- No offline queue — if a photo fails to sync while offline, it stays local (safe) but
+  there's no automatic retry when connectivity returns; the same gap already exists for
+  everything in this app.
+- Sync config (`SYNC_URL`/`SYNC_TOKEN`/`SYNC_PHOTOS_FOLDER_ID`) is hardcoded to the POC
+  sheet/folder — no per-building configuration yet.
+
+**Status: built, not yet field-tested.** Needs your phone, `SYNC_ENABLED=true`, and a
+real station photo add, followed by an export, to confirm both the sync and the
+export-resolution fallback work outside the POC test harness.

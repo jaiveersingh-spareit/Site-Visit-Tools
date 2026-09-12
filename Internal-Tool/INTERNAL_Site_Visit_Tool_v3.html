@@ -1385,6 +1385,83 @@ const PREPOPULATED_FLOOR_PLANS = {};
 let floorPlanHammer = null;
 
 // ── BASE CONTAINER DIMENSIONS (cached to prevent feedback loops) ──
+// ── APPS SCRIPT PHOTO SYNC (feature-flagged POC — see BLOCKERS.md "Backend sync") ──
+// Confirmed round-trip 12 Sep 2026 against a real Apps Script Web App (Sheets + Drive).
+// Scope of this first integration: sync a STATION PHOTO to Drive immediately after it's
+// added (not the whole floor, not on a separate "save" step — station photos are the
+// biggest local-storage driver and the actual cause of the storage-full crash risk), then
+// evict the local base64 copy once the upload is confirmed, replacing it with the Drive
+// thumbnail link. Set SYNC_ENABLED=false to fall back to the original all-local behavior
+// instantly if anything here misbehaves in the field.
+const SYNC_ENABLED = true;
+const SYNC_URL = 'https://script.google.com/macros/s/AKfycbytRq7_9GdPkT4fDhVHfCaRfMbobMLPgpdsAubJQtZvWNsoWTFpcrnjpiNi4jtJa9ktqQ/exec';
+const SYNC_TOKEN = '123';
+const SYNC_PHOTOS_FOLDER_ID = '1rGm1X_9T_xHCkv_MAiRTzxrRZ8JFPKlO';
+
+// Finds a station across all floors, not just the currently open one — the async
+// sync response can land after the user has navigated elsewhere in the app.
+function findStationById(stationId){
+  for (const floor of (S.floors||[])) {
+    const st = (floor.stations||[]).find(s => s.id === stationId);
+    if (st) return { st, floor };
+  }
+  return null;
+}
+
+// Uploads one station photo to Drive via the Apps Script backend. Best-effort:
+// on success, evicts the local base64 payload (replaced with the Drive thumbnail
+// link, freeing the bulk of localStorage this photo was using). On any failure —
+// offline, network error, bad response — the local copy is left exactly as-is, so
+// no data is ever lost; it just isn't freed from local storage until a future sync.
+function syncStationPhotoToBackend(stationId, photoEntry, buildingName, floorIndex){
+  if (!SYNC_ENABLED || isOffline) return;
+
+  const match = (photoEntry.data || '').match(/^data:([^;]+);base64,(.*)$/s);
+  if (!match) return; // already synced (data is now a Drive link, not a data URL) or malformed
+  const mimeType = match[1];
+  const base64 = match[2];
+
+  fetch(SYNC_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({
+      token: SYNC_TOKEN,
+      floorId: curFloorId || 'unassigned',
+      stations: [],
+      photo: {
+        stationId, photoType: 'station', base64, mimeType,
+        buildingName: buildingName || S.building || 'Site',
+        floorIndex: floorIndex != null ? floorIndex : 0,
+      },
+      driveFolderId: SYNC_PHOTOS_FOLDER_ID,
+    }),
+  })
+  .then(res => res.json())
+  .then(result => {
+    if (!result || result.error || !result.photo || !result.photo.fileId) {
+      console.warn('[SYNC] station photo upload did not confirm, keeping local copy:', result);
+      return;
+    }
+    const found = findStationById(stationId);
+    if (!found) return; // station was deleted since the upload started
+    const livePhoto = (found.st.photos || []).find(p => p.timestamp === photoEntry.timestamp);
+    if (!livePhoto) return; // photo was removed since the upload started
+
+    // Evict the local base64 payload — this is the actual storage-space win.
+    livePhoto.data = result.photo.thumbnailLink;
+    livePhoto.driveFileId = result.photo.fileId;
+    livePhoto.driveFullLink = result.photo.fullLink;
+    livePhoto.synced = true;
+    persist();
+
+    // Refresh the carousel image only if this station is the one currently open
+    if (curStationId === stationId) updateStationPhotoUI();
+  })
+  .catch(err => {
+    console.warn('[SYNC] station photo upload failed, keeping local copy:', err);
+  });
+}
+
 let baseContainerWidth = 0;
 let baseContainerHeight = 0;
 
@@ -5425,9 +5502,11 @@ function processStationPhotoData(fileOrDataUrl, fileName){
       return;
     }
     if(!st.photos) st.photos=[];
-    st.photos.push({data:fileOrDataUrl,name:fileName,timestamp:new Date().toISOString()});
+    const __photoEntryA={data:fileOrDataUrl,name:fileName,timestamp:new Date().toISOString()};
+    st.photos.push(__photoEntryA);
     updateStationPhotoUI();
     persist();  // Persist after adding the photo
+    syncStationPhotoToBackend(st.id, __photoEntryA, S.building, gF().number);
   } else {
     // It's a file object
     const r=new FileReader();
@@ -5438,9 +5517,11 @@ function processStationPhotoData(fileOrDataUrl, fileName){
         return;
       }
       if(!st.photos) st.photos=[];
-      st.photos.push({data:ev.target.result,name:fileOrDataUrl.name,timestamp:new Date().toISOString()});
+      const __photoEntryB={data:ev.target.result,name:fileOrDataUrl.name,timestamp:new Date().toISOString()};
+      st.photos.push(__photoEntryB);
       updateStationPhotoUI();
       persist();  // Persist after FileReader completes
+      syncStationPhotoToBackend(st.id, __photoEntryB, S.building, gF().number);
     };
     r.readAsDataURL(fileOrDataUrl);
   }
@@ -6470,15 +6551,45 @@ async function emailExportByFloor(){
 }
 
 // ── EXCEL EXPORT ──────────────────────────────────────────────────────────
-function doExportExcel(){
+async function doExportExcel(){
   if(!S.floors.length){alert('No data to export yet.');return;}
   if(typeof XLSX==='undefined'){
     alert('Excel library not loaded — check your connection and try again.');return;
   }
-  buildAndDownloadExcel();
+  await buildAndDownloadExcel();
 }
 
-function collectAllPhotos(){
+// Resolves one photo-like object's `data` field to a real, embeddable data: URL.
+// Most photos already are one (data:image/...;base64,...) and resolve instantly.
+// A photo that's been synced-then-evicted (see syncStationPhotoToBackend) has its
+// `data` replaced with a Drive thumbnail link instead — for those, fetch the real
+// bytes back from the Apps Script backend (not directly from Drive: Drive/
+// googleusercontent responses generally lack the CORS headers a browser fetch()
+// needs to read them from an arbitrary origin). Falls back to returning the
+// existing `data` value (the thumbnail link) on any failure, rather than
+// throwing — a degraded export (a link where an image should be) beats a
+// crashed one.
+async function resolvePhotoDataUrl(photo){
+  if (!photo || typeof photo.data !== 'string') return photo && photo.data;
+  if (photo.data.startsWith('data:')) return photo.data; // already real bytes
+  if (!photo.driveFileId || !SYNC_ENABLED) return photo.data; // nothing we can do
+
+  try {
+    const url = `${SYNC_URL}?token=${encodeURIComponent(SYNC_TOKEN)}&action=getPhoto&fileId=${encodeURIComponent(photo.driveFileId)}`;
+    const res = await fetch(url);
+    const result = await res.json();
+    if (!result || result.error || !result.base64) {
+      console.warn('[SYNC] getPhoto did not return bytes, falling back to link:', result);
+      return photo.data;
+    }
+    return `data:${result.mimeType || 'image/jpeg'};base64,${result.base64}`;
+  } catch (err) {
+    console.warn('[SYNC] getPhoto fetch failed, falling back to link:', err);
+    return photo.data;
+  }
+}
+
+async function collectAllPhotos(){
   const photos=[];
   let photoNum=1;
   // Context photos (building/dumpster area)
@@ -6498,7 +6609,7 @@ function collectAllPhotos(){
     f.stations.forEach(st=>{
       (st.photos||[]).forEach((p,i)=>{
         const fname=`03_Station_F${f.number}_${st.letter}_Photo${i+1}.jpg`;
-        photos.push({data:p.data,name:fname,type:'Station',desc:`Floor ${f.number} Station ${st.letter} Photo ${i+1}`});
+        photos.push({data:p.data,driveFileId:p.driveFileId,name:fname,type:'Station',desc:`Floor ${f.number} Station ${st.letter} Photo ${i+1}`});
       });
       if(st.photoDataUrl&&!st.photos?.length){
         const fname=`03_Station_F${f.number}_${st.letter}_Photo1.jpg`;
@@ -6518,10 +6629,12 @@ function collectAllPhotos(){
       }
     });
   });
+  await Promise.all(photos.map(async p => { p.data = await resolvePhotoDataUrl(p); }));
   return photos;
 }
 
-function buildAndDownloadExcel(){
+async function buildAndDownloadExcel(){
+  const photos=await collectAllPhotos(); // resolved once, reused below (avoids re-fetching synced photos twice)
   const wb=XLSX.utils.book_new();
 
   // Sheet 1: Building Info
@@ -6534,7 +6647,7 @@ function buildAndDownloadExcel(){
     ['Visit Date',            S.date      ||''],
     ['Auditor',               S.auditor   ||''],
     ['Contact Notes',         S.contactNotes ||''],
-    ['Photos Exported',       collectAllPhotos().length+' photos'],
+    ['Photos Exported',       photos.length+' photos'],
   ];
   const wsInfo=XLSX.utils.aoa_to_sheet(infoData);
   wsInfo['!cols']=[{wch:26},{wch:42}];
@@ -6601,7 +6714,6 @@ function buildAndDownloadExcel(){
   XLSX.writeFile(wb,fname);
 
   // Download photos with slight delay to avoid browser blocking
-  const photos=collectAllPhotos();
   console.log('[EXPORT] Collected photos:', photos.length, photos);
   if(photos.length>0){
     const baseFolder=(S.building.replace(/\s+/g,'_')||'spare_it')+'_photos_'+(S.date||'draft');
@@ -6629,14 +6741,15 @@ function buildAndDownloadExcel(){
 }
 
 // ── ZIP EXPORT WITH FLOOR PLANS + PINS ──
-function exportZipWithFloorPlans(){
+async function exportZipWithFloorPlans(){
   if(!S.floors.length){alert('No data to export yet.');return;}
   if(typeof JSZip === 'undefined'){
     alert('ZIP library not loaded. Using standard export instead.');
-    buildAndDownloadExcel();
+    await buildAndDownloadExcel();
     return;
   }
 
+  const photos=await collectAllPhotos(); // resolved once, reused below (avoids re-fetching synced photos twice)
   const zip = new JSZip();
 
   // First, create and download Excel with all data
@@ -6651,7 +6764,7 @@ function exportZipWithFloorPlans(){
     ['Visit Date', S.date || ''],
     ['Auditor', S.auditor || ''],
     ['Streams', (S.selectedStreams || []).map(s => typeof s === 'string' ? s : s.stream).join(', ')],
-    ['Photos Exported', collectAllPhotos().length + ' photos'],
+    ['Photos Exported', photos.length + ' photos'],
   ];
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
   XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
@@ -6762,7 +6875,6 @@ function exportZipWithFloorPlans(){
   addFloorPlanToZip();
 
   // Download photos separately after ZIP is created
-  const photos = collectAllPhotos();
   console.log('[EXPORT] Collected photos for download:', photos.length, photos);
   if(photos.length > 0){
     let photoIndex = 0;
