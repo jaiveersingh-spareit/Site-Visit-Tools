@@ -1098,6 +1098,16 @@
       <input type="text" id="new-st-name" placeholder="e.g. L1 - Condiment, B1 - BOH, E1 - Beverage" maxlength="50" />
     </div>
 
+    <div style="padding:0 16px;margin-bottom:12px;">
+      <label class="flabel">Station Photo (optional)</label>
+      <input type="file" id="new-st-photo-input" accept="image/*" style="display:none" onchange="handleStationCreationPhoto(event)" />
+      <button class="btn btn-ghost" type="button" style="width:100%;" onclick="document.getElementById('new-st-photo-input').click()">📷 Add Photo</button>
+      <div id="new-st-photo-preview-wrap" style="display:none;margin-top:8px;position:relative;">
+        <img id="new-st-photo-preview" style="width:100%;max-height:180px;object-fit:cover;border-radius:10px;display:block;" alt="Station photo preview" />
+        <button class="btn btn-sm btn-ghost" type="button" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.55);color:#fff;" onclick="removeStationCreationPhoto()">✕ Remove</button>
+      </div>
+    </div>
+
     <div style="max-height:60dvh;overflow-y:auto;padding:0 16px;">
       <div id="station-bins-container"></div>
     </div>
@@ -1373,6 +1383,7 @@ let gatewayPositioningMode=false, positioningGatewayId=null;
 let displayPositioningMode=false, positioningDisplayId=null;
 let isRepositioning=false; // Flag to track if we're repositioning an existing station
 let stationCreationBins=[]; // Temporary storage for bins being created in modal-station
+let stationCreationPhoto=null; // Temporary storage for an optional photo captured during station creation (see modal-station)
 const LS='spare_site_v3';
 
 // ── PREPOPULATION SYSTEM (Organization can prepopulate floor plans) ──
@@ -4293,6 +4304,7 @@ function selectStation(){
   document.getElementById('new-st-name').value = ''; // Clear station name field
 
   // Initialize bins array with FLAT STRUCTURE
+  resetStationCreationPhoto();
   stationCreationBins = [];
   if(S.selectedStreams && Array.isArray(S.selectedStreams)){
     S.selectedStreams.forEach(streamObj => {
@@ -4771,6 +4783,7 @@ function openAddStation(preservePinCoordinates = false){
 
   // Initialize bins array - FLAT STRUCTURE with all sizes
   // Each stream gets Small/Medium/Large options (none pre-selected)
+  resetStationCreationPhoto();
   stationCreationBins = [];
   if(S.selectedStreams && Array.isArray(S.selectedStreams)){
     S.selectedStreams.forEach(streamObj => {
@@ -5125,6 +5138,52 @@ function addBinToStation(stream, streamIdx){
   closeModal('modal-add-more-bins');
 }
 
+function resetStationCreationPhoto(){
+  stationCreationPhoto=null;
+  const input=document.getElementById('new-st-photo-input');
+  if(input) input.value='';
+  const wrap=document.getElementById('new-st-photo-preview-wrap');
+  if(wrap) wrap.style.display='none';
+}
+
+function removeStationCreationPhoto(){
+  resetStationCreationPhoto();
+}
+
+// Mirrors handleStationPhoto()'s HEIC/direct-file handling, but stores the result
+// as a pending photo attached to the station once it's actually created
+// (confirmStationCreation()) rather than pushing it into an existing station's
+// photos array immediately — there is no station yet at this point.
+function handleStationCreationPhoto(e){
+  const file=e.target.files[0]; if(!file) return;
+
+  const applyPreview=(dataUrl, fileName)=>{
+    stationCreationPhoto={data:dataUrl,name:fileName||'station_photo.jpg',timestamp:new Date().toISOString()};
+    const wrap=document.getElementById('new-st-photo-preview-wrap');
+    const img=document.getElementById('new-st-photo-preview');
+    if(img) img.src=dataUrl;
+    if(wrap) wrap.style.display='block';
+  };
+
+  const isHeic=file.type==='image/heic'||file.type==='image/heif'||file.name.toLowerCase().endsWith('.heic')||file.name.toLowerCase().endsWith('.heif');
+  if(isHeic){
+    // Reuses the same window.__stationPhotoCallback slot handleStationPhoto() uses —
+    // handleHeicFile() only knows to check that name (and __gwPhotoCallback), and the
+    // creation modal and an open station's photo section are never on screen at the
+    // same time, so there's no collision risk in practice.
+    handleHeicFile(file, e.target);
+    const originalOnload=window.__stationPhotoCallback;
+    window.__stationPhotoCallback=function(dataUrl, fileName){
+      applyPreview(dataUrl, fileName);
+      if(originalOnload) originalOnload();
+    };
+  } else {
+    const r=new FileReader();
+    r.onload=ev=>applyPreview(ev.target.result, file.name);
+    r.readAsDataURL(file);
+  }
+}
+
 function confirmStationCreation(){
   console.log('[STATION CREATION] Starting confirmStationCreation()');
   console.log('[STATION CREATION] stationCreationBins:', stationCreationBins);
@@ -5209,12 +5268,18 @@ function confirmStationCreation(){
     };
   });
 
+  // Attach the photo captured in the Create Station modal, if any — pushed
+  // onto photos[] here (rather than in the object literal) so we have a
+  // reference to the exact array entry to hand to syncStationPhotoToBackend()
+  // below, same as any other station photo add.
+  const capturedPhoto = stationCreationPhoto;
+
   const newStation = {
     id: stationId,
     letter: letter,
     name: stationName,
     signage: '',
-    photos: [],
+    photos: capturedPhoto ? [capturedPhoto] : [],
     notes: '',
     bins: binsWithCodes,
     x: pendingPinX || null,
@@ -5226,6 +5291,10 @@ function confirmStationCreation(){
 
   f.stations.push(newStation);
   console.log('[STATION CREATION] Pushed to f.stations. Total stations:', f.stations.length);
+
+  if(capturedPhoto){
+    syncStationPhotoToBackend(newStation.id, capturedPhoto, S.building, f.number);
+  }
 
   // Clear pin mode and save
   pendingPinX = null;
@@ -5247,6 +5316,7 @@ function confirmStationCreation(){
   console.log('[STATION CREATION] ✓ rendered pins');
 
   stationCreationBins = [];
+  resetStationCreationPhoto();
   console.log('[STATION CREATION] ✓ cleared stationCreationBins');
 
   // Show appropriate success modal

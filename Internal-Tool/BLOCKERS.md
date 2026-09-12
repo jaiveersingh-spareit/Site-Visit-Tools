@@ -484,3 +484,24 @@ both export functions are now `async` to support this.
 **Status: built, not yet field-tested.** Needs your phone, `SYNC_ENABLED=true`, and a
 real station photo add, followed by an export, to confirm both the sync and the
 export-resolution fallback work outside the POC test harness.
+
+---
+
+## Missing photo option in station creation (12 Sep 2026)
+
+**Report:** unable to take a photo while creating a station — the "Create Station" modal
+(`#modal-station`, where you name the station and pick bins) had no photo field at all.
+Confirmed by reading the modal's HTML directly: the photo `<input type="file">` only
+existed in the station *detail* view (opened by tapping an already-created station), not
+in the creation flow. Not a bug in existing code — the feature genuinely didn't exist yet.
+
+**Fix:** added an optional "Station Photo" field directly to the Create Station modal
+(camera-roll/upload button + preview + remove, same HEIC handling as the existing station
+detail photo field). The captured photo attaches to the station the moment it's created
+(`confirmStationCreation()`) and — consistent with the sync-on-add behavior above — syncs
+to Drive and evicts locally the same way any other station photo does. Only wired into
+the main modal-based creation flow; the separate tap-to-place-pin-and-instantly-create
+path (`createNewStationFromPin()`) and `duplicateStation()` don't go through this modal
+and were intentionally left untouched.
+
+**Status: built, not yet field-tested.**
