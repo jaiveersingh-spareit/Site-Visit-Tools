@@ -61,13 +61,26 @@ function checkToken_(token) {
   return expected && token === expected;
 }
 
-// ── GET: loadProject ────────────────────────────────────────────────────
+// ── GET: loadProject (default) or getPhoto (?action=getPhoto&fileId=...) ──
 // ?sheetId=...&token=...&floorId=...   (sheetId is accepted but this script is
 // bound to one sheet in the POC; a later multi-tenant version would open by ID)
+//
+// getPhoto exists because the client evicts a synced photo's local base64 copy
+// once it's confirmed uploaded (that's the whole point — it's what frees the
+// local storage that was crashing the app), replacing it with just a Drive
+// thumbnail link. The Excel/zip export needs the real bytes back at export
+// time. A direct browser fetch() to the Drive thumbnail/file URL usually can't
+// read the response (Drive/googleusercontent don't send permissive CORS
+// headers for arbitrary origins), so the client re-fetches through this same
+// Apps Script endpoint instead, which has no such restriction.
 function doGet(e) {
   const token = e.parameter.token;
   if (!checkToken_(token)) {
     return jsonResponse_({ error: 'invalid token' }, 401);
+  }
+
+  if (e.parameter.action === 'getPhoto') {
+    return handleGetPhoto_(e);
   }
 
   const floorId = e.parameter.floorId;
@@ -180,6 +193,25 @@ function uploadPhoto_(photo, driveFolderId) {
 
 function logPhoto_(sheet, stationId, photoType, photoResult) {
   sheet.appendRow([stationId, photoType, photoResult.fileId, photoResult.fullLink, new Date().toISOString()]);
+}
+
+function handleGetPhoto_(e) {
+  const fileId = e.parameter.fileId;
+  if (!fileId) {
+    return jsonResponse_({ error: 'fileId is required' }, 400);
+  }
+  try {
+    const file = DriveApp.getFileById(fileId);
+    const blob = file.getBlob();
+    return jsonResponse_({
+      ok: true,
+      fileId,
+      mimeType: blob.getContentType(),
+      base64: Utilities.base64Encode(blob.getBytes()),
+    });
+  } catch (err) {
+    return jsonResponse_({ error: 'could not read file: ' + err }, 404);
+  }
 }
 
 function jsonResponse_(obj, code) {
