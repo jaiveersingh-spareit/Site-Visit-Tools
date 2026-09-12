@@ -505,3 +505,59 @@ path (`createNewStationFromPin()`) and `duplicateStation()` don't go through thi
 and were intentionally left untouched.
 
 **Status: built, not yet field-tested.**
+
+---
+
+## Offline station photo data loss (found + fixed, 12 Sep 2026)
+
+**Found during internal testing** (a Playwright test suite was built to verify the photo
+sync work above before pushing — not a field report). While writing a test for the
+"add a photo while offline" case, discovered `queueOfflinePhoto()` stored only a
+human-readable label (`"Station A"`) for a queued station photo — no `stationId` or
+`floorId`. `syncPhotoQueue()` (the function that runs when you tap "Sync Now" or the
+device reconnects) only ever actually did something for `type==='context'` entries; for
+`type==='station'` entries it just counted them, cleared the entire queue, and told the
+user "✅ Synced N photos!" **The station photo itself was never attached to any station —
+it was silently discarded.** The app reported success while the data was gone. This
+predates today's changes; unrelated to the Apps Script sync work above, but found while
+testing it and int the same problem space (photo storage reliability), so fixed
+immediately rather than left open.
+
+**Second issue in the same function, same fix:** `syncPhotoQueue()` is also called
+automatically by the `online` event listener every time the device regains connectivity
+— including when nothing is queued, which is the common case (any wifi/cell handoff).
+That path hit `alert('No photos to sync.')` every time, an unnecessary popup on ordinary
+reconnects.
+
+**Fix:**
+- `queueOfflinePhoto()` now accepts an optional `meta` object (`{stationId, floorId}`),
+  captured at the two station-photo call sites in `processStationPhotoData()`.
+- `syncPhotoQueue()` rewritten: for a `station` entry, looks up the real station (by
+  floorId+stationId, falling back to a full-floors search for any older queued entries
+  that predate this fix and have no floorId) and pushes the photo into its `photos[]` —
+  then, since we're back online, runs it through `syncStationPhotoToBackend()` for the
+  same Drive sync/eviction treatment as any other station photo. If the station (or its
+  floor) was deleted while the photo sat queued, it's now reported plainly as "could not
+  be attached" rather than falsely claimed as synced. Context-photo handling is
+  unchanged. An empty queue is now a silent no-op instead of an alert, fixing the
+  reconnect-popup issue too.
+- Unknown/future queue entry types are kept in the queue rather than silently dropped,
+  so a schema change elsewhere can't quietly start losing data the same way again.
+
+**Verified via automated test** (`Internal-Tool/tools/tests/`, mocked Apps Script
+backend, no real Drive/Sheet touched): queued station photo correctly attaches on
+reconnect and is then synced/evicted; a deleted-station case reports the miss instead of
+a false success; empty-queue reconnect no longer alerts; context-photo path unchanged.
+13/13 checks passed, plus a re-run of the 21 checks from the prior sync-feature testing
+to confirm no regression there either.
+
+**Status: fixed and tested in an automated harness. Not yet tested on a real device** —
+needs someone to actually go offline, add a station photo, reconnect, and confirm it
+shows up in the station's photo carousel.
+
+**Not yet addressed (logged for later, not understood well enough yet to act on):**
+a second, smaller finding from the same review — `buildAndDownloadExcel()` has no guard
+of its own against the `XLSX` library failing to load; it relies on `doExportExcel()`
+checking first, but `exportZipWithFloorPlans()`'s "JSZip not loaded" fallback calls
+`buildAndDownloadExcel()` directly, bypassing that check. Pre-existing, not caused by
+recent changes, low-probability in practice. Needs a closer look before deciding on a fix.

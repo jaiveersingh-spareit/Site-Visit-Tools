@@ -2583,9 +2583,14 @@ function renderStreamsDisplay(){
 }
 
 // ── OFFLINE PHOTO QUEUE ──
-function queueOfflinePhoto(type,location,dataUrl,description){
+// `meta` (optional) carries identifiers a queued photo needs to be reattached
+// later — e.g. {stationId, floorId} for a station photo. Previously only a
+// human-readable `location` string ("Station A") was kept, which syncPhotoQueue()
+// had no way to resolve back to an actual station — see BLOCKERS.md "Offline
+// station photo data loss".
+function queueOfflinePhoto(type,location,dataUrl,description,meta){
   if(!S.photoQueue) S.photoQueue=[];
-  S.photoQueue.push({type,location,dataUrl,description:description||'',timestamp:Date.now()});
+  S.photoQueue.push({type,location,dataUrl,description:description||'',timestamp:Date.now(),...(meta||{})});
   persist();
   updateSyncStatus();
 }
@@ -2608,18 +2613,56 @@ function updateSyncStatus(){
 }
 
 function syncPhotoQueue(){
-  if(!S.photoQueue?.length){ alert('No photos to sync.'); return; }
-  let synced=0;
+  if(!S.photoQueue?.length) return; // nothing queued — common on the automatic
+  // reconnect trigger (window 'online' listener), so no popup for this case.
+
+  let contextSynced=0, stationSynced=0, stationSkipped=0;
+  const stillQueued=[]; // anything we don't recognize how to handle stays queued, never silently dropped
+
   S.photoQueue.forEach(p=>{
-    const {type,location,dataUrl,description}=p;
-    if(type==='context') S.contextPhotos.push({dataUrl,description:description||''});
-    synced++;
+    const {type,dataUrl,description,stationId,floorId,timestamp}=p;
+    if(type==='context'){
+      S.contextPhotos.push({dataUrl,description:description||''});
+      contextSynced++;
+    } else if(type==='station'){
+      const floor = (floorId && S.floors.find(f=>f.id===floorId)) || null;
+      const st = floor
+        ? (floor.stations||[]).find(s=>s.id===stationId)
+        : S.floors.flatMap(f=>f.stations||[]).find(s=>s.id===stationId); // fall back to searching all floors for older queue entries with no floorId
+      if(st){
+        if(!st.photos) st.photos=[];
+        const photoEntry={data:dataUrl, name:description||'station_photo.jpg', timestamp:new Date(timestamp||Date.now()).toISOString()};
+        st.photos.push(photoEntry);
+        stationSynced++;
+        // Now that we're back online, run it through the same Drive sync/eviction
+        // as any other station photo add.
+        syncStationPhotoToBackend(st.id, photoEntry, S.building, (floor||gF())?.number);
+      } else {
+        // Station was deleted (or its floor was) while this photo sat queued
+        // offline. Nothing safe to attach it to — drop it, but say so plainly
+        // rather than silently reporting a false "synced" success.
+        stationSkipped++;
+        console.warn('[SYNC QUEUE] Could not attach queued station photo — station no longer exists:', p);
+      }
+    } else {
+      stillQueued.push(p);
+    }
   });
-  const count=S.photoQueue.length;
-  S.photoQueue=[];
+
+  S.photoQueue = stillQueued;
   persist();
-  if(count>0){ renderContextPhotos(); updateSyncStatus(); }
-  alert('✅ Synced '+count+' photo'+(count===1?'':'s')+'!');
+  if(contextSynced) renderContextPhotos();
+  if(stationSynced){ renderStations(); updateStationPhotoUI(); }
+  updateSyncStatus();
+
+  const parts=[];
+  if(contextSynced) parts.push(contextSynced+' context photo'+(contextSynced===1?'':'s'));
+  if(stationSynced) parts.push(stationSynced+' station photo'+(stationSynced===1?'':'s'));
+  let msg = parts.length ? '✅ Synced '+parts.join(', ')+'!' : '';
+  if(stationSkipped){
+    msg += (msg?' ':'') + '⚠️ '+stationSkipped+' queued station photo'+(stationSkipped===1?'':'s')+' could not be attached (station no longer exists).';
+  }
+  if(msg) alert(msg);
 }
 
 function renderContextPhotos(){
@@ -5567,7 +5610,7 @@ function processStationPhotoData(fileOrDataUrl, fileName){
   if(typeof fileOrDataUrl==='string'){
     // It's already a data URL (from HEIC conversion)
     if(isOffline){
-      queueOfflinePhoto('station','Station '+st.letter,fileOrDataUrl,fileName);
+      queueOfflinePhoto('station','Station '+st.letter,fileOrDataUrl,fileName,{stationId:st.id,floorId:gF()?.id});
       alert('📌 Station photo queued (offline). Will sync when online.');
       return;
     }
@@ -5582,7 +5625,7 @@ function processStationPhotoData(fileOrDataUrl, fileName){
     const r=new FileReader();
     r.onload=ev=>{
       if(isOffline){
-        queueOfflinePhoto('station','Station '+st.letter,ev.target.result,fileOrDataUrl.name);
+        queueOfflinePhoto('station','Station '+st.letter,ev.target.result,fileOrDataUrl.name,{stationId:st.id,floorId:gF()?.id});
         alert('📌 Station photo queued (offline). Will sync when online.');
         return;
       }
