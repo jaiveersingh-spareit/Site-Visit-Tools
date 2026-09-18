@@ -51,7 +51,7 @@ function setupSheet() {
 // (Browser.inputBox() would be the interactive way to do this, but it has the
 // same UI-context hang risk as alert() above, so we avoid it here.)
 function setToken() {
-  const TOKEN_VALUE = 'poc-test-123'; // <-- change this before running, then you can change it back/remove it
+  const TOKEN_VALUE = '123'; // <-- must match SYNC_TOKEN in INTERNAL_Site_Visit_Tool_v3.html
   PropertiesService.getScriptProperties().setProperty('SHARED_SECRET', TOKEN_VALUE);
   Logger.log('Token set.');
 }

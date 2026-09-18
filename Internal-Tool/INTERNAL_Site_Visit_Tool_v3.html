@@ -6856,6 +6856,9 @@ async function buildAndDownloadExcel(){
 // ── ZIP EXPORT WITH FLOOR PLANS + PINS ──
 async function exportZipWithFloorPlans(){
   if(!S.floors.length){alert('No data to export yet.');return;}
+  if(typeof XLSX==='undefined'){
+    alert('Excel library not loaded — check your connection and try again.');return;
+  }
   if(typeof JSZip === 'undefined'){
     alert('ZIP library not loaded. Using standard export instead.');
     await buildAndDownloadExcel();
