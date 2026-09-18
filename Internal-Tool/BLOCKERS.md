@@ -561,3 +561,95 @@ of its own against the `XLSX` library failing to load; it relies on `doExportExc
 checking first, but `exportZipWithFloorPlans()`'s "JSZip not loaded" fallback calls
 `buildAndDownloadExcel()` directly, bypassing that check. Pre-existing, not caused by
 recent changes, low-probability in practice. Needs a closer look before deciding on a fix.
+
+---
+
+## Photo-sync concurrency bugs + offline storage crash (found + fixed, 18 Sep 2026)
+
+Targeted code review of the photo-sync/Drive-upload feature, specifically hunting for
+concurrency and high-queue-volume edge cases (prompted by: "what happens when a sync
+fails, or too many photos have been queued"). Found real bugs introduced by the earlier
+compression/no-eviction redesign (same day) — the local copy is no longer swapped out
+after a successful sync, which quietly broke a safety check that used to prevent
+duplicate work.
+
+**1. No "already synced" guard.** Before compression, a synced photo's `data` field got
+replaced with a Drive link, so re-running the sync function on it naturally no-opped (a
+Drive link doesn't match the "still a raw photo" regex). Once the local copy stopped
+being evicted, that check could never fire again — `data` is always a real photo now.
+Any duplicate call on an already-synced photo (see #2, #3) would silently re-upload it,
+creating a duplicate file in Drive.
+
+**2. No in-flight guard.** Three separate triggers can retry the same failed photo — the
+45s background retry, the `online` reconnect handler, and the manual "Sync Photos"
+button — with nothing stopping them from overlapping. Two concurrent uploads for one
+photo meant two Drive files, and whichever response landed last won the final status: a
+slow failing duplicate could flip an already-synced photo back to `failed` and re-queue
+it for another (also duplicate) retry — a loop that could repeat indefinitely.
+
+**3. `syncPhotoQueue()` not safe to call twice concurrently.** It only reassigned
+`S.photoQueue` to the leftovers at the very end, after awaiting compression for each
+queued photo sequentially. Calling it again before the first run finished — plausible
+right at reconnect, since the `online` listener fires it and the user might also tap
+"Sync Photos" — read the same still-queued photos twice and pushed a duplicate copy onto
+the station each time. The larger the queue, the longer the first run takes, the wider
+this window got — directly the "too many photos queued" case.
+
+**4. Offline queue had no compression at all.** The online-capture compression fix
+(same day) only compressed photos once attached to a station; `queueOfflinePhoto()`
+still wrote the full-resolution image straight to localStorage. Several photos taken in
+a dead zone (a real scenario — basements, mechanical rooms) could still hit the
+storage-full crash the online path was just fixed for.
+
+**5. No cap on simultaneous retries.** A large batch of failed photos (e.g. after a long
+dead zone) fired one fetch per photo at once with no limit, every 45s — enough to risk
+Apps Script's per-user concurrent-execution limit, which just fails the whole burst and
+repeats it next cycle without making progress.
+
+**Fixes:**
+- `syncStationPhotoToBackend()`: added an explicit `driveFileId` check that short-
+  circuits (and self-heals status) for an already-synced photo, and a `syncInFlight`
+  flag set for the duration of the upload so a second call for the same photo is a
+  no-op instead of a second upload. Now also returns its promise chain instead of being
+  purely fire-and-forget, so callers that need to (retry batching) can await it.
+- `retryFailedPhotoSyncs()`: batches retries 3 at a time instead of firing all at once.
+- `syncPhotoQueue()`: wrapped in a re-entrancy guard (`photoQueueSyncInFlight`) so a
+  second call while one is already running is a no-op.
+- `queueOfflinePhoto()`: now compresses before writing to localStorage, same as the
+  online path. **Trade-off, accepted deliberately:** offline-queued photos upload at
+  this compressed quality once reconnected — the original full-resolution bytes are
+  never persisted, since keeping them around to preserve quality would reopen the exact
+  crash this fix prevents. Online capture is unaffected and still uploads full
+  resolution (the original bytes are only ever held in memory, briefly, for that case).
+
+**Also done in the same pass (not a bug fix, requested alongside it):**
+- Drive filenames now follow the same station-linked convention the app's own Excel/zip
+  export already uses — `{Building}_F{floor}_{StationLetter}_Photo{n}.jpg` — instead of
+  the opaque internal station id. Falls back to the old naming if an older client
+  doesn't send the new fields. **Requires a manual step to take effect**: paste the
+  updated `Code.gs` into the Apps Script editor and create a new deployment version
+  (Manage deployments → Edit → New version) — script property changes apply instantly,
+  but code changes to the web app itself do not, same as the `getPhoto` action earlier.
+- Added a "Photo Upload Queue" modal (📤 button, was previously a blind "Sync Photos"
+  action): lists every photo not yet confirmed on Drive — offline-queued and
+  attached-but-pending/failed — with a thumbnail, station/floor, live status, and a
+  per-photo manual retry button. Updates live while open as sync attempts resolve.
+- Re-verified the live Apps Script connection: token accepted, `loadProject`-style GET
+  and `getPhoto` both reachable and returning clean expected responses (not auth/network
+  failures) — environment is stable as of this check.
+
+**Related, out of scope for this pass (logged, not fixed):** context/building photos
+(separate from station photos — not part of the Drive-sync feature at all) are still
+stored uncompressed in both `S.contextPhotos` (online) and the offline queue's `context`
+entries, carrying the same storage-crash risk this whole effort has been fixing for
+station photos. Worth a follow-up if context photos turn out to cause the same crash in
+the field.
+
+**Status:** fixed, syntax-checked, and manually traced through every path (fresh
+capture, retry, concurrent-retry, offline queue, deleted-station-during-retry). Not
+tested on a real device — automated browser testing was attempted again and hit the same
+environment walls as before (no root to install Chromium's system libraries in this
+sandboxed shell; jsdom hangs fetching external resources). Needs on-device testing:
+back-to-back photos online, a stretch offline with several photos then reconnecting, and
+a deliberately-broken sync (e.g. wrong token again) to confirm the retry queue and modal
+behave as expected without creating duplicate Drive files.

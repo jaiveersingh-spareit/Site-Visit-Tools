@@ -746,7 +746,7 @@
     <span id="sync-pending-badge" style="position:absolute;top:-8px;right:10px;background:#EE4547;color:#fff;padding:4px 8px;border-radius:12px;font-size:11px;font-weight:700;display:none;min-width:24px;text-align:center;"></span>
   </div>
 
-  <button id="sync-now-btn" class="btn btn-yellow" style="width:100%;display:none;margin-bottom:16px;" onclick="syncAllPending()">🔄 Sync Photos</button>
+  <button id="sync-now-btn" class="btn btn-yellow" style="width:100%;display:none;margin-bottom:16px;" onclick="openModal('modal-photo-queue')">🔄 Sync Photos</button>
 </div>
 
 <!-- VALIDATION MODAL -->
@@ -1296,6 +1296,19 @@
 -->
 
 <!-- Add Bin -->
+<!-- Photo Upload Queue — every photo not yet confirmed on Drive, with live status -->
+<div class="modal-overlay" id="modal-photo-queue">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">📤 Photo Upload Queue</div>
+    <div id="photo-queue-list" style="max-height:55vh;overflow-y:auto;margin-bottom:12px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-yellow" style="flex:1;" onclick="syncAllPending()">🔄 Sync All Now</button>
+      <button class="btn btn-outline" style="flex:1;" onclick="closeModal('modal-photo-queue')">Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-bin">
   <div class="modal-sheet">
     <div class="modal-handle"></div>
@@ -1448,33 +1461,57 @@ function markPhotoSyncOutcome(stationId, floorId, photo, status){
 // design, they're never written to localStorage — so it falls back to uploading
 // the local compressed copy rather than losing the photo entirely.
 function syncStationPhotoToBackend(stationId, photoEntry, buildingName, floorIndex, originalDataUrl){
-  if (!SYNC_ENABLED) return;
+  if (!SYNC_ENABLED) return Promise.resolve();
 
   const found = findStationById(stationId);
-  if (!found) return; // station was deleted before the sync could even start
+  if (!found) return Promise.resolve(); // station was deleted before the sync could even start
   const livePhoto = (found.st.photos || []).find(p => p.timestamp === photoEntry.timestamp);
-  if (!livePhoto) return; // photo was removed before the sync could even start
+  if (!livePhoto) return Promise.resolve(); // photo was removed before the sync could even start
+
+  // Bug-review fix (18 Sep 2026): without this, any duplicate/concurrent call
+  // for an already-synced photo (see the in-flight guard below for how that
+  // can happen) would silently re-upload it to Drive — the local copy is
+  // never evicted anymore, so the old "data is no longer a data: URL" check
+  // that used to catch this can never fire.
+  if (livePhoto.driveFileId) {
+    if (livePhoto.syncStatus !== 'synced') markPhotoSyncOutcome(stationId, found.floor.id, livePhoto, 'synced');
+    return Promise.resolve();
+  }
+  // Bug-review fix (18 Sep 2026): without this, the 45s background retry, the
+  // 'online' reconnect handler, and the manual "Sync Photos" button could all
+  // fire a sync for the same failed photo at once. Two uploads in flight for
+  // one photo meant two Drive files, and whichever response landed last won
+  // the final status — a slow failing duplicate could flip an already-synced
+  // photo back to 'failed' and queue it for another (also duplicate) retry.
+  if (livePhoto.syncInFlight) return Promise.resolve();
 
   if (isOffline) {
     markPhotoSyncOutcome(stationId, found.floor.id, livePhoto, 'failed');
-    return;
+    return Promise.resolve();
   }
 
   const sourceDataUrl = originalDataUrl || livePhoto.data;
   const match = (sourceDataUrl || '').match(/^data:([^;]+);base64,(.*)$/s);
   if (!match) {
-    // Nothing uploadable (already synced or malformed) — make sure status reflects that.
-    if (livePhoto.syncStatus !== 'synced') markPhotoSyncOutcome(stationId, found.floor.id, livePhoto, 'synced');
-    return;
+    // Malformed — nothing uploadable.
+    markPhotoSyncOutcome(stationId, found.floor.id, livePhoto, 'failed');
+    return Promise.resolve();
   }
   const mimeType = match[1];
   const base64 = match[2];
 
   livePhoto.syncStatus = 'pending';
+  livePhoto.syncInFlight = true;
   livePhoto.syncStartedAt = Date.now();
   if (curStationId === stationId) updateStationPhotoUI();
 
-  fetch(SYNC_URL, {
+  // Station letter + this photo's 1-based position among the station's own
+  // photos — gives the Drive file a name tied back to the station the same
+  // way the Excel/zip export already names files (F{floor}_{letter}_Photo{n}),
+  // instead of the opaque internal station id.
+  const photoIndex = (found.st.photos || []).indexOf(livePhoto) + 1;
+
+  return fetch(SYNC_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({
@@ -1483,6 +1520,8 @@ function syncStationPhotoToBackend(stationId, photoEntry, buildingName, floorInd
       stations: [],
       photo: {
         stationId, photoType: 'station', base64, mimeType,
+        stationLetter: found.st.letter || '',
+        photoIndex: photoIndex > 0 ? photoIndex : 1,
         buildingName: buildingName || S.building || 'Site',
         floorIndex: floorIndex != null ? floorIndex : 0,
       },
@@ -1492,6 +1531,7 @@ function syncStationPhotoToBackend(stationId, photoEntry, buildingName, floorInd
   .then(res => res.json())
   .then(result => {
     const elapsedMs = Date.now() - (livePhoto.syncStartedAt || Date.now());
+    livePhoto.syncInFlight = false;
     if (!result || result.error || !result.photo || !result.photo.fileId) {
       console.warn('[SYNC] station photo upload did not confirm ('+elapsedMs+'ms), keeping local copy:', result);
       markPhotoSyncOutcome(stationId, found.floor.id, livePhoto, 'failed');
@@ -1507,6 +1547,7 @@ function syncStationPhotoToBackend(stationId, photoEntry, buildingName, floorInd
     markPhotoSyncOutcome(stationId, found.floor.id, livePhoto, 'synced');
   })
   .catch(err => {
+    livePhoto.syncInFlight = false;
     console.warn('[SYNC] station photo upload failed, keeping local copy:', err);
     markPhotoSyncOutcome(stationId, found.floor.id, livePhoto, 'failed');
   });
@@ -1516,19 +1557,32 @@ function syncStationPhotoToBackend(stationId, photoEntry, buildingName, floorInd
 // response, or the device was offline when the attempt was made). Safe to call
 // often — each entry just re-runs syncStationPhotoToBackend, which re-checks
 // the live photo state and is a no-op if it's already synced.
-function retryFailedPhotoSyncs(){
+// Bug-review fix (18 Sep 2026): previously fired every failed photo's retry
+// at once via forEach with no limit. With many failures queued up (a long
+// dead zone during a site visit is the realistic case), that's a burst of
+// many simultaneous POSTs — enough to risk Apps Script's per-user concurrent-
+// execution limit, which just fails the whole burst and repeats it next
+// cycle without ever making progress. Retries now run a few at a time.
+const RETRY_BATCH_SIZE = 3;
+async function retryFailedPhotoSyncs(){
   if (!SYNC_ENABLED || isOffline || !S.failedPhotoSyncs?.length) return;
   const queue = S.failedPhotoSyncs.slice();
-  queue.forEach(entry => {
-    const found = findStationById(entry.stationId);
-    const photo = found && (found.st.photos || []).find(p => p.timestamp === entry.timestamp);
-    if (!found || !photo) {
-      // Station or photo no longer exists — drop the stale retry entry.
-      S.failedPhotoSyncs = S.failedPhotoSyncs.filter(f => !(f.stationId === entry.stationId && f.timestamp === entry.timestamp));
-      return;
-    }
-    syncStationPhotoToBackend(entry.stationId, photo, S.building, found.floor.number);
-  });
+  for (let i = 0; i < queue.length; i += RETRY_BATCH_SIZE) {
+    const batch = queue.slice(i, i + RETRY_BATCH_SIZE);
+    await Promise.all(batch.map(entry => {
+      const found = findStationById(entry.stationId);
+      const photo = found && (found.st.photos || []).find(p => p.timestamp === entry.timestamp);
+      if (!found || !photo) {
+        // Station or photo no longer exists — drop the stale retry entry.
+        S.failedPhotoSyncs = S.failedPhotoSyncs.filter(f => !(f.stationId === entry.stationId && f.timestamp === entry.timestamp));
+        return Promise.resolve();
+      }
+      // syncStationPhotoToBackend's own already-synced/in-flight guards make
+      // this safe even if another trigger (reconnect, the sync button) is
+      // retrying the same entry at the same time.
+      return syncStationPhotoToBackend(entry.stationId, photo, S.building, found.floor.number);
+    }));
+  }
   persist();
   updateSyncStatus();
 }
@@ -1539,6 +1593,75 @@ function retryFailedPhotoSyncs(){
 function syncAllPending(){
   syncPhotoQueue();
   retryFailedPhotoSyncs();
+  renderPhotoQueueModal();
+}
+
+// Lists every photo not yet confirmed on Drive — offline-queued (never
+// attempted) and attached-but-pending/failed — so "how many photos are
+// still not on Drive" is always a visible, checkable list rather than just
+// a count on a badge. Called whenever the modal opens and whenever sync
+// state changes while it's open (see updateSyncStatus / queueOfflinePhoto).
+function renderPhotoQueueModal(){
+  const container = document.getElementById('photo-queue-list');
+  if (!container) return;
+
+  const rows = [];
+
+  (S.photoQueue || []).forEach(p => {
+    if (p.type !== 'station' && p.type !== 'context') return;
+    let label = p.type === 'context' ? 'Building context photo' : 'Station photo';
+    if (p.type === 'station' && p.stationId) {
+      const found = findStationById(p.stationId);
+      if (found) label = 'Floor ' + found.floor.number + ' — Station ' + found.st.letter;
+    }
+    rows.push({
+      thumb: p.dataUrl,
+      label,
+      status: isOffline ? '📡 Queued (offline)' : '⏳ Queued — will sync shortly',
+      color: '#616161',
+      retry: null,
+    });
+  });
+
+  (S.floors || []).forEach(f => {
+    (f.stations || []).forEach(st => {
+      (st.photos || []).forEach(photo => {
+        if (photo.syncStatus === 'pending' || photo.syncStatus === 'failed') {
+          rows.push({
+            thumb: photo.data,
+            label: 'Floor ' + f.number + ' — Station ' + st.letter,
+            status: photo.syncStatus === 'failed' ? '⚠️ Failed — will retry automatically' : '⏳ Syncing…',
+            color: photo.syncStatus === 'failed' ? '#c62828' : '#616161',
+            retry: photo.syncStatus === 'failed' ? { stationId: st.id, timestamp: photo.timestamp } : null,
+          });
+        }
+      });
+    });
+  });
+
+  if (!rows.length) {
+    container.innerHTML = '<div style="padding:24px 0;text-align:center;"><div style="font-size:28px;">✅</div><p style="color:var(--muted);margin-top:8px;font-size:13px;">All photos are synced to Drive.</p></div>';
+    return;
+  }
+
+  container.innerHTML = rows.map(r => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+      <img src="${r.thumb || ''}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;background:#eee;flex-shrink:0;" />
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;">${r.label}</div>
+        <div style="font-size:11px;color:${r.color};font-weight:600;">${r.status}</div>
+      </div>
+      ${r.retry ? `<button class="btn btn-sm btn-outline" onclick="retryOnePhotoSync('${r.retry.stationId}','${r.retry.timestamp}')">Retry</button>` : ''}
+    </div>
+  `).join('');
+}
+
+function retryOnePhotoSync(stationId, timestamp){
+  const found = findStationById(stationId);
+  const photo = found && (found.st.photos || []).find(p => p.timestamp === timestamp);
+  if (!found || !photo) return;
+  syncStationPhotoToBackend(stationId, photo, S.building, found.floor.number);
+  renderPhotoQueueModal();
 }
 
 let baseContainerWidth = 0;
@@ -2276,6 +2399,7 @@ function openModal(id){
     console.log(`[openModal] Added 'open' class to ${id}`);
     if(id==='modal-stream-select'){ console.log('Rendering stream selector...'); if(typeof renderStreamSelector==='function') renderStreamSelector(); }
     if(id==='modal-bin'){ console.log('Rendering bin form...'); if(typeof renderBinForm==='function') renderBinForm(); }
+    if(id==='modal-photo-queue'){ if(typeof renderPhotoQueueModal==='function') renderPhotoQueueModal(); }
     return true;
   } catch(e) {
     console.error(`Error opening modal ${id}:`, e);
@@ -2660,11 +2784,13 @@ function renderStreamsDisplay(){
 // human-readable `location` string ("Station A") was kept, which syncPhotoQueue()
 // had no way to resolve back to an actual station — see BLOCKERS.md "Offline
 // station photo data loss".
-function queueOfflinePhoto(type,location,dataUrl,description,meta){
+async function queueOfflinePhoto(type,location,dataUrl,description,meta){
   if(!S.photoQueue) S.photoQueue=[];
-  S.photoQueue.push({type,location,dataUrl,description:description||'',timestamp:Date.now(),...(meta||{})});
+  const compressed = await compressPhotoForLocalStorage(dataUrl);
+  S.photoQueue.push({type,location,dataUrl:compressed,description:description||'',timestamp:Date.now(),...(meta||{})});
   persist();
   updateSyncStatus();
+  if(document.getElementById('modal-photo-queue')?.classList.contains('open')) renderPhotoQueueModal();
 }
 
 function updateSyncStatus(){
@@ -2685,9 +2811,28 @@ function updateSyncStatus(){
     badge.style.display='none';
     btn.style.display='none';
   }
+  if (document.getElementById('modal-photo-queue')?.classList.contains('open')) renderPhotoQueueModal();
 }
 
+let photoQueueSyncInFlight = false; // bug-review fix (18 Sep 2026): see note below
 async function syncPhotoQueue(){
+  // Bug-review fix (18 Sep 2026): without this, calling syncPhotoQueue a
+  // second time before the first run finished (very plausible right at
+  // reconnect — the 'online' listener fires this while the user might also
+  // tap "Sync Photos") would read the same still-queued photos twice, since
+  // S.photoQueue is only reassigned to the leftovers at the very end. Each
+  // run would push its own duplicate copy onto the station and upload it
+  // separately. The bigger the queue, the longer the first run takes
+  // (compression is awaited per photo), the wider this window gets.
+  if (photoQueueSyncInFlight) return;
+  photoQueueSyncInFlight = true;
+  try {
+    await syncPhotoQueueInner();
+  } finally {
+    photoQueueSyncInFlight = false;
+  }
+}
+async function syncPhotoQueueInner(){
   if(!S.photoQueue?.length) return; // nothing queued — common on the automatic
   // reconnect trigger (window 'online' listener), so no popup for this case.
 
@@ -2706,16 +2851,14 @@ async function syncPhotoQueue(){
         : S.floors.flatMap(f=>f.stations||[]).find(s=>s.id===stationId); // fall back to searching all floors for older queue entries with no floorId
       if(st){
         if(!st.photos) st.photos=[];
-        // Compress before it lands in localStorage, same as any other station
-        // photo add — the queued dataUrl is full-resolution (captured while
-        // offline, before compression existed in this flow), so the original
-        // is still uploaded to Drive at full quality.
-        const compressed = await compressPhotoForLocalStorage(dataUrl);
-        const photoEntry={data:compressed, name:description||'station_photo.jpg', timestamp:new Date(timestamp||Date.now()).toISOString(), syncStatus:'pending'};
+        // dataUrl here is already the compressed copy queueOfflinePhoto wrote to
+        // localStorage — no original full-res bytes exist to upload (keeping
+        // them around while offline would reopen the crash this compression
+        // prevents), so this uploads at compressed quality. Not re-compressing
+        // again here, too — that would just lose more quality for no reason.
+        const photoEntry={data:dataUrl, name:description||'station_photo.jpg', timestamp:new Date(timestamp||Date.now()).toISOString(), syncStatus:'pending'};
         st.photos.push(photoEntry);
         stationSynced++;
-        // Now that we're back online, run it through the same Drive sync as
-        // any other station photo add.
         syncStationPhotoToBackend(st.id, photoEntry, S.building, (floor||gF())?.number, dataUrl);
       } else {
         // Station was deleted (or its floor was) while this photo sat queued
@@ -5727,7 +5870,7 @@ async function processStationPhotoData(fileOrDataUrl, fileName){
   // crash-safe locally, without giving up quality on the Drive copy.
   const attachPhoto = async (originalDataUrl, name) => {
     if(isOffline){
-      queueOfflinePhoto('station','Station '+st.letter,originalDataUrl,name,{stationId:st.id,floorId:gF()?.id});
+      await queueOfflinePhoto('station','Station '+st.letter,originalDataUrl,name,{stationId:st.id,floorId:gF()?.id});
       alert('📌 Station photo queued (offline). Will sync when online.');
       return;
     }

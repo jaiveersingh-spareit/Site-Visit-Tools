@@ -173,10 +173,16 @@ function uploadPhoto_(photo, driveFolderId) {
   const bytes = Utilities.base64Decode(photo.base64);
   const blob = Utilities.newBlob(bytes, photo.mimeType || 'image/jpeg');
 
-  // {building}_{floorIdx}_{stationID}_{type}.jpg — matches the current
-  // station-ID filename scheme per the doc's naming convention.
-  const fileName = [photo.buildingName || 'Site', photo.floorIndex || '0', photo.stationId, photo.photoType]
-    .join('_') + '.jpg';
+  // {Building}_F{floor}_{StationLetter}_Photo{n}.jpg — matches the same
+  // station-linked naming already used by the app's own Excel/zip export
+  // (see collectAllPhotos() in the main tool: 03_Station_F{floor}_{letter}_
+  // Photo{n}.jpg), so a Drive file can be matched back to its station and
+  // photo number at a glance instead of by the opaque internal station id.
+  // Falls back to the old {building}_{floorIdx}_{stationId}_{type} scheme
+  // if an older client sends a request without stationLetter/photoIndex.
+  const fileName = photo.stationLetter
+    ? [photo.buildingName || 'Site', 'F' + (photo.floorIndex != null ? photo.floorIndex : '0'), photo.stationLetter, 'Photo' + (photo.photoIndex || 1)].join('_') + '.jpg'
+    : [photo.buildingName || 'Site', photo.floorIndex || '0', photo.stationId, photo.photoType].join('_') + '.jpg';
   blob.setName(fileName);
 
   const folder = driveFolderId ? DriveApp.getFolderById(driveFolderId) : DriveApp.getRootFolder();
