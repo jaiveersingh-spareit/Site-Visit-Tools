@@ -7001,7 +7001,7 @@ async function collectAllPhotos(){
     f.stations.forEach(st=>{
       (st.photos||[]).forEach((p,i)=>{
         const fname=`03_Station_F${f.number}_${st.letter}_Photo${i+1}.jpg`;
-        photos.push({data:p.data,driveFileId:p.driveFileId,name:fname,type:'Station',desc:`Floor ${f.number} Station ${st.letter} Photo ${i+1}`});
+        photos.push({data:p.data,driveFileId:p.driveFileId,driveFullLink:p.driveFullLink,name:fname,type:'Station',desc:`Floor ${f.number} Station ${st.letter} Photo ${i+1}`});
       });
       if(st.photoDataUrl&&!st.photos?.length){
         const fname=`03_Station_F${f.number}_${st.letter}_Photo1.jpg`;
@@ -7100,6 +7100,23 @@ async function buildAndDownloadExcel(){
   const wsNotes=XLSX.utils.aoa_to_sheet(noteRows);
   wsNotes['!cols']=[{wch:10},{wch:7},{wch:12},{wch:24},{wch:10},{wch:16},{wch:28},{wch:40},{wch:8},{wch:8}];
   XLSX.utils.book_append_sheet(wb,wsNotes,'Field Notes');
+
+  // Photos sheet — directly answers "where are the photos": every exported
+  // photo with its filename and, for synced station photos, the Drive link
+  // to open it. Photos not yet synced (or types the app doesn't sync to
+  // Drive at all — context/floor-plan/gateway/display) are labeled plainly
+  // instead of leaving the reader to guess why there's no link.
+  const photoRows=[['Type','Description','Filename','Drive Link','Status']];
+  photos.forEach(p=>{
+    let link, status;
+    if(p.driveFullLink){ link=p.driveFullLink; status='Synced to Drive'; }
+    else if(p.type==='Station'){ link=''; status='Not yet synced — open the app and check the Photo Upload Queue'; }
+    else { link=''; status='Local only (this photo type is not synced to Drive)'; }
+    photoRows.push([p.type, p.desc||'', p.name||'', link, status]);
+  });
+  const wsPhotos=XLSX.utils.aoa_to_sheet(photoRows);
+  wsPhotos['!cols']=[{wch:12},{wch:32},{wch:34},{wch:46},{wch:44}];
+  XLSX.utils.book_append_sheet(wb,wsPhotos,'Photos');
 
   // Download Excel
   const fname=(S.building.replace(/\s+/g,'_')||'spare_it')+'_site_visit_'+(S.date||'draft')+'.xlsx';
@@ -7231,6 +7248,23 @@ async function exportZipWithFloorPlans(){
   });
   const wsBins = XLSX.utils.aoa_to_sheet(binRows);
   XLSX.utils.book_append_sheet(wb, wsBins, 'Bins');
+
+  // Photos sheet — directly answers "where are the photos": every exported
+  // photo with its filename and, for synced station photos, the Drive link
+  // to open it. Photos not yet synced (or types the app doesn't sync to
+  // Drive at all — context/floor-plan/gateway/display) are labeled plainly
+  // instead of leaving the reader to guess why there's no link.
+  const photoRows = [['Type','Description','Filename','Drive Link','Status']];
+  photos.forEach(p=>{
+    let link, status;
+    if(p.driveFullLink){ link=p.driveFullLink; status='Synced to Drive'; }
+    else if(p.type==='Station'){ link=''; status='Not yet synced — open the app and check the Photo Upload Queue'; }
+    else { link=''; status='Local only (this photo type is not synced to Drive)'; }
+    photoRows.push([p.type, p.desc||'', p.name||'', link, status]);
+  });
+  const wsPhotos = XLSX.utils.aoa_to_sheet(photoRows);
+  wsPhotos['!cols'] = [{wch:12},{wch:32},{wch:34},{wch:46},{wch:44}];
+  XLSX.utils.book_append_sheet(wb, wsPhotos, 'Photos');
 
   // Convert Excel to blob and add to ZIP
   const excelBlob = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
