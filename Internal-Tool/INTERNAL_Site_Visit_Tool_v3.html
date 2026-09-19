@@ -1305,7 +1305,9 @@
   <div class="modal-sheet">
     <div class="modal-handle"></div>
     <div class="modal-title">📤 Photo Upload Queue</div>
-    <div id="photo-queue-list" style="max-height:55vh;overflow-y:auto;margin-bottom:12px;"></div>
+    <div id="photo-queue-list" style="max-height:40vh;overflow-y:auto;margin-bottom:12px;"></div>
+    <div class="sec-label" style="margin-top:0;">Activity Log</div>
+    <div id="sync-log-list" style="max-height:20vh;overflow-y:auto;margin-bottom:12px;font-size:12px;"></div>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-yellow" style="flex:1;" onclick="syncAllPending()">🔄 Sync All Now</button>
       <button class="btn btn-outline" style="flex:1;" onclick="closeModal('modal-photo-queue')">Close</button>
@@ -1452,6 +1454,9 @@ function markPhotoSyncOutcome(stationId, floorId, photo, status){
   S.failedPhotoSyncs = S.failedPhotoSyncs.filter(f => !(f.stationId === stationId && f.timestamp === photo.timestamp));
   if (status === 'failed') {
     S.failedPhotoSyncs.push({ stationId, floorId, timestamp: photo.timestamp });
+  }
+  if (typeof logSyncEvent === 'function') {
+    logSyncEvent('Photo ' + status + ' — station ' + stationId + (status === 'failed' ? ' (will retry)' : '.'), status === 'failed' ? 'error' : 'success');
   }
   persist();
   updateSyncStatus();
@@ -1673,6 +1678,147 @@ function retryOnePhotoSync(stationId, timestamp){
   renderPhotoQueueModal();
 }
 
+// ── FLOOR/STATION DATA SYNC (Stations/Gateways/Displays → Sheets) ──
+// Previously only photos synced to the backend — every fetch(SYNC_URL) call
+// sent `stations: []`, so all station/bin/gateway/display/notes data was
+// local-only with zero backup. This mirrors the same auto-sync + retry shape
+// already proven for photos, but for the floor's structural data instead.
+
+const floorDataSyncInFlight = {}; // floorId -> bool, per-floor in-flight guard
+let floorDataSyncDebounceTimer = null;
+
+// In-memory activity log surfaced in the Photo/Sync modal. Capped so it can't
+// grow unbounded over a long visit; not required to survive a reload (it's
+// operational visibility, not data), so it isn't persisted to localStorage.
+const SYNC_LOG_MAX = 40;
+function logSyncEvent(message, level){
+  if (!S.syncLog) S.syncLog = [];
+  S.syncLog.unshift({ message, level: level || 'info', at: Date.now() });
+  if (S.syncLog.length > SYNC_LOG_MAX) S.syncLog.length = SYNC_LOG_MAX;
+  renderSyncLog();
+}
+function renderSyncLog(){
+  const el = document.getElementById('sync-log-list');
+  if (!el) return;
+  const entries = S.syncLog || [];
+  if (!entries.length) {
+    el.innerHTML = '<div style="color:var(--muted);padding:6px 0;">No sync activity yet.</div>';
+    return;
+  }
+  const colors = { info: 'var(--muted)', success: '#2e7d32', error: '#c62828' };
+  el.innerHTML = entries.map(e => {
+    const time = new Date(e.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return `<div style="padding:3px 0;color:${colors[e.level] || colors.info};">[${time}] ${e.message}</div>`;
+  }).join('');
+}
+
+// Flattens one floor's stations (one row per bin, matching the Batch Sample
+// API BinID convention already used by generateBinCode/getStreamCode/
+// SCALE_ABBREV elsewhere in this file), gateways, and displays into the flat
+// row shapes the backend's Stations/Gateways/Displays sheets expect.
+function flattenFloorForSync(floor){
+  const buildingCode = getBuildingCode(S.building);
+  const stationRows = [];
+
+  (floor.stations || []).forEach(st => {
+    const stationIdentifier = st.name ? st.name.split(' - ')[0] : st.letter;
+    if (!st.bins || !st.bins.length) {
+      // Preserve station position/notes even with no bins yet, same as the
+      // Excel export does for stations without bins.
+      stationRows.push({
+        stationId: st.id, letter: st.letter, stationName: st.name || '', floor: floor.number,
+        stream: '', occurrence: '', scale: '', accessory: '', accessory2: '',
+        binId: '', bin: '', x: st.x, y: st.y, notes: st.notes || '',
+      });
+      return;
+    }
+    st.bins.forEach(bin => {
+      // bin.code already bakes in an accessory suffix (e.g. "...T1s_wq") for
+      // the app's own internal use — the Batch Sample API convention (per the
+      // EY reference sheet) keeps the BinID clean and puts accessories in
+      // their own columns instead, so strip the suffix back off here.
+      const baseBinId = (bin.code || '').split('_')[0];
+      const streamCode = getStreamCode(bin.stream);
+      const scaleCode = SCALE_ABBREV[bin.scale] || '?';
+      const occurrence = getBinOccurrenceNum(bin.code || '');
+      const shortBin = streamCode + occurrence + scaleCode;
+      const accessories = bin.accessories || [];
+      stationRows.push({
+        stationId: st.id, letter: st.letter, stationName: st.name || '', floor: floor.number,
+        stream: bin.stream, occurrence, scale: bin.scale,
+        accessory: accessories[0] || '', accessory2: accessories[1] || '',
+        binId: baseBinId || (buildingCode + stationIdentifier + shortBin),
+        bin: shortBin, x: st.x, y: st.y, notes: st.notes || '',
+      });
+    });
+  });
+
+  const gatewayRows = (floor.gateways || []).map(gw => ({
+    gatewayId: gw.id, label: gw.label || '', location: gw.location || '',
+    tagId: gw.tagId || '', x: gw.x, y: gw.y, notes: gw.notes || '',
+  }));
+  const displayRows = (floor.displays || []).map(d => ({
+    displayId: d.id, label: d.label || '', location: d.location || '',
+    tagId: d.tagId || '', x: d.x, y: d.y, notes: d.notes || '',
+  }));
+
+  return { stations: stationRows, gateways: gatewayRows, displays: displayRows };
+}
+
+// Debounced trigger — called from persist() so any change (station/bin add,
+// pin move, note edit, gateway/display add) eventually syncs without syncing
+// on every single keystroke.
+function scheduleFloorDataSync(){
+  if (!curFloorId) return;
+  if (floorDataSyncDebounceTimer) clearTimeout(floorDataSyncDebounceTimer);
+  const floorId = curFloorId;
+  floorDataSyncDebounceTimer = setTimeout(() => syncFloorDataToBackend(floorId), 2000);
+}
+
+function syncFloorDataToBackend(floorId){
+  const floor = (S.floors || []).find(f => f.id === floorId);
+  if (!floor) return;
+  if (floorDataSyncInFlight[floorId]) return; // in-flight guard, same pattern as photo sync
+  if (isOffline) { logSyncEvent('Floor ' + floor.number + ' data sync deferred — offline.', 'info'); return; }
+
+  floorDataSyncInFlight[floorId] = true;
+  const { stations, gateways, displays } = flattenFloorForSync(floor);
+  const startedAt = Date.now();
+
+  return fetch(SYNC_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({
+      token: SYNC_TOKEN,
+      floorId,
+      stations, gateways, displays,
+      driveFolderId: SYNC_PHOTOS_FOLDER_ID,
+      building: { address: S.address, hauler: S.hauler, auditor: S.auditor, streams: (S.selectedStreams || []).join(',') },
+    }),
+  })
+  .then(res => res.json())
+  .then(result => {
+    floorDataSyncInFlight[floorId] = false;
+    const elapsedMs = Date.now() - startedAt;
+    if (!result || result.error) {
+      logSyncEvent('Floor ' + floor.number + ' data sync failed (' + elapsedMs + 'ms): ' + (result && result.error || 'unknown error'), 'error');
+      return;
+    }
+    logSyncEvent('Floor ' + floor.number + ' synced — ' + (result.stationsWritten||0) + ' bin rows, ' +
+      (result.gatewaysWritten||0) + ' gateways, ' + (result.displaysWritten||0) + ' displays (' + elapsedMs + 'ms).', 'success');
+    if (result.buildingFolder && result.buildingFolder.id && S.driveFolderId !== result.buildingFolder.id) {
+      S.driveFolderId = result.buildingFolder.id;
+      S.driveFolderLink = result.buildingFolder.url || ('https://drive.google.com/drive/folders/' + result.buildingFolder.id);
+      renderDriveFolderStatus();
+      persist();
+    }
+  })
+  .catch(err => {
+    floorDataSyncInFlight[floorId] = false;
+    logSyncEvent('Floor ' + floor.number + ' data sync error: ' + err, 'error');
+  });
+}
+
 let baseContainerWidth = 0;
 let baseContainerHeight = 0;
 
@@ -1799,6 +1945,7 @@ function persist(){
     showSaveIndicator();
     const failBanner=document.getElementById('save-failed-banner');
     if(failBanner) failBanner.remove();
+    if (typeof scheduleFloorDataSync === 'function') scheduleFloorDataSync();
   }catch(e){
     // Previously silently swallowed. A full localStorage quota (large photo
     // payloads are the usual cause) meant every station rename, pin move, and
@@ -2420,7 +2567,7 @@ function openModal(id){
     console.log(`[openModal] Added 'open' class to ${id}`);
     if(id==='modal-stream-select'){ console.log('Rendering stream selector...'); if(typeof renderStreamSelector==='function') renderStreamSelector(); }
     if(id==='modal-bin'){ console.log('Rendering bin form...'); if(typeof renderBinForm==='function') renderBinForm(); }
-    if(id==='modal-photo-queue'){ if(typeof renderPhotoQueueModal==='function') renderPhotoQueueModal(); }
+    if(id==='modal-photo-queue'){ if(typeof renderPhotoQueueModal==='function') renderPhotoQueueModal(); if(typeof renderSyncLog==='function') renderSyncLog(); }
     return true;
   } catch(e) {
     console.error(`Error opening modal ${id}:`, e);

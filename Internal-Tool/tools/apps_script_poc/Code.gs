@@ -13,36 +13,126 @@
 // ── ONE-TIME SETUP ──────────────────────────────────────────────────────
 // Run this once from the Apps Script editor (select setupSheet in the function
 // dropdown, click Run). Creates the four tabs with headers if they don't exist.
+// Tab order and schema mirror the Spare-it Batch Sample API reference sheets
+// (Quick Start guide tab first, then Building List, then the data tabs) so
+// this sheet reads the same way to anyone already familiar with that
+// workflow, and can eventually feed the same import script.
+const SHEET_SCHEMA_V2 = {
+  'Instructions': ['Site Visit Sync — How This Sheet Works'],
+  'Building List': ['Building Name', 'UUID', 'Address', 'Hauler', 'Auditor', 'Streams', 'Drive Folder ID'],
+  'Stations': ['floorId', 'stationId', 'letter', 'stationName', 'floor', 'stream', 'occurrence', 'scale', 'accessory', 'accessory2', 'binId', 'bin', 'x', 'y', 'notes', 'lastUpdated'],
+  'Gateways': ['floorId', 'gatewayId', 'label', 'location', 'tagId', 'x', 'y', 'notes', 'lastUpdated'],
+  'Displays': ['floorId', 'displayId', 'label', 'location', 'tagId', 'x', 'y', 'notes', 'lastUpdated'],
+  'Photos': ['stationId', 'photoType', 'driveFileId', 'shareableLink', 'timestamp'],
+};
+const SHEET_TAB_ORDER = ['Instructions', 'Building List', 'Stations', 'Gateways', 'Displays', 'Photos'];
+
+const INSTRUCTIONS_TEXT = [
+  ['📋 Site Visit Sync — How This Sheet Works'],
+  [''],
+  ['This sheet is written to automatically by the Site Visit Tool app as a site visit'],
+  ['happens — station, gateway, display, and photo data all land here in near real time.'],
+  ['You should not need to edit these tabs by hand during a visit.'],
+  [''],
+  ['Tabs:'],
+  ['  • Building List — one row per building this sheet has ever synced, with the'],
+  ['    Drive folder that building\'s photos are stored under.'],
+  ['  • Stations — one row per bin. Columns follow the same BinID convention as'],
+  ['    other Spare-it Batch Sample API sheets: Building code + Station + Stream'],
+  ['    code + Occurrence + Scale, e.g. "5840L1T1s". Accessories are listed in'],
+  ['    their own columns (up to 2), never folded into the BinID itself.'],
+  ['  • Gateways / Displays — one row per device. A "tagId" column is reserved'],
+  ['    for the physical asset tag Operations assigns after install; it is left'],
+  ['    blank until that separate tagging workflow exists.'],
+  ['  • Photos — every photo synced to Drive, with a direct link and sync status.'],
+  [''],
+  ['Full replace-per-floor model: every sync for a floor overwrites all of that'],
+  ['floor\'s existing rows in Stations/Gateways/Displays with the current complete'],
+  ['set from the app — this sheet is not additive, so editing rows here by hand'],
+  ['will be overwritten by the next sync from the app.'],
+];
+
 function setupSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  const tabs = {
-    'Building': ['name', 'address', 'hauler', 'auditor', 'streams', 'driveFolderId'],
-    'Floors': ['floorId', 'floorIndex', 'floorName', 'planDriveFileId', 'planDataUrl_DEPRECATED', 'displayWidth', 'displayHeight'],
-    'Stations': ['floorId', 'stationId', 'letter', 'stream', 'scale', 'binCode', 'x', 'y', 'notes', 'lastUpdated'],
-    'Photos': ['stationId', 'photoType', 'driveFileId', 'shareableLink', 'timestamp'],
-  };
-
-  Object.keys(tabs).forEach(tabName => {
+  SHEET_TAB_ORDER.forEach(tabName => {
     let sheet = ss.getSheetByName(tabName);
     if (!sheet) sheet = ss.insertSheet(tabName);
     if (sheet.getLastRow() === 0) {
-      sheet.getRange(1, 1, 1, tabs[tabName].length).setValues([tabs[tabName]]);
-      sheet.setFrozenRows(1);
+      if (tabName === 'Instructions') {
+        sheet.getRange(1, 1, INSTRUCTIONS_TEXT.length, 1).setValues(INSTRUCTIONS_TEXT);
+        sheet.setColumnWidth(1, 640);
+      } else {
+        const headers = SHEET_SCHEMA_V2[tabName];
+        sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+        sheet.setFrozenRows(1);
+      }
     }
   });
 
-  // Remove the default "Sheet1" if it's still empty and unused
-  const defaultSheet = ss.getSheetByName('Sheet1');
-  if (defaultSheet && defaultSheet.getLastRow() === 0) {
-    ss.deleteSheet(defaultSheet);
+  // Put tabs in the reference order (Instructions, Building List, then data tabs).
+  SHEET_TAB_ORDER.forEach((tabName, i) => {
+    const sheet = ss.getSheetByName(tabName);
+    if (sheet) ss.setActiveSheet(sheet), ss.moveActiveSheet(i + 1);
+  });
+
+  // Remove legacy/default tabs that are empty and unused.
+  ['Sheet1', 'Building'].forEach(name => {
+    const sheet = ss.getSheetByName(name);
+    if (sheet && sheet.getLastRow() === 0) ss.deleteSheet(sheet);
+  });
+
+  Logger.log('Tabs created/verified in order: ' + SHEET_TAB_ORDER.join(', '));
+}
+
+// ── ONE-TIME MIGRATION (v1 → v2 schema) ─────────────────────────────────
+// Run this once from the editor if this spreadsheet already has the old
+// 4-tab schema (Building/Floors/Stations/Photos with the old Stations
+// columns). It is destructive to the Stations tab's existing rows, since
+// the column meanings changed entirely (bins-per-row instead of one row
+// per station) — safe here because this is the test sheet, not production
+// data. Building/Floors/Photos content is not touched beyond header/rename.
+function migrateSheetsToV2() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // Old 'Building' tab (single-row-per-project) becomes 'Building List'
+  // (one row per building, keyed by name) if it isn't already renamed.
+  const oldBuilding = ss.getSheetByName('Building');
+  if (oldBuilding && !ss.getSheetByName('Building List')) {
+    oldBuilding.setName('Building List');
   }
 
-  // Logger.log (not a UI alert) — alert()/Browser.inputBox() need an active
-  // spreadsheet UI session and just hang forever when run from the standalone
-  // script.google.com editor instead of from a custom menu inside the open Sheet.
-  // View this via the Executions log (clock icon on the left) or Ctrl/Cmd+Enter.
-  Logger.log('Tabs created/verified: ' + Object.keys(tabs).join(', '));
+  const stations = ss.getSheetByName('Stations');
+  if (stations) {
+    const currentHeaders = stations.getLastRow() > 0
+      ? stations.getRange(1, 1, 1, stations.getLastColumn()).getValues()[0]
+      : [];
+    const isLegacy = currentHeaders.indexOf('binCode') !== -1 || currentHeaders.indexOf('accessory') === -1;
+    if (isLegacy) {
+      stations.clear();
+      const headers = SHEET_SCHEMA_V2['Stations'];
+      stations.getRange(1, 1, 1, headers.length).setValues([headers]);
+      stations.setFrozenRows(1);
+      Logger.log('Stations tab migrated to v2 schema (old rows cleared — column meaning changed).');
+    }
+  }
+
+  // Create any new tabs (Building List, Gateways, Displays, Instructions)
+  // that didn't exist before, and reorder everything.
+  setupSheet();
+
+  // Reconcile the Building List header if it was carried over from the old
+  // single-row 'Building' tab shape.
+  const buildingList = ss.getSheetByName('Building List');
+  const blHeaders = buildingList.getRange(1, 1, 1, Math.max(buildingList.getLastColumn(), 1)).getValues()[0];
+  if (blHeaders[0] !== 'Building Name') {
+    buildingList.clear();
+    const headers = SHEET_SCHEMA_V2['Building List'];
+    buildingList.getRange(1, 1, 1, headers.length).setValues([headers]);
+    buildingList.setFrozenRows(1);
+  }
+
+  Logger.log('Migration to v2 schema complete.');
 }
 
 // Run this once to set the shared-secret token. Edit TOKEN_VALUE below first,
@@ -134,8 +224,9 @@ function doPost(e) {
   }
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const stationsSheet = ss.getSheetByName('Stations');
-  writeStations_(stationsSheet, body.floorId, body.stations);
+  writeSheetRows_(ss.getSheetByName('Stations'), body.floorId, body.stations);
+  if (Array.isArray(body.gateways)) writeSheetRows_(ss.getSheetByName('Gateways'), body.floorId, body.gateways);
+  if (Array.isArray(body.displays)) writeSheetRows_(ss.getSheetByName('Displays'), body.floorId, body.displays);
 
   let photoResult = null;
   let buildingFolderResult = null;
@@ -148,9 +239,42 @@ function doPost(e) {
     buildingFolderResult = { id: buildingFolder.getId(), url: buildingFolder.getUrl() };
     photoResult = uploadPhoto_(body.photo, buildingFolder.getId());
     logPhoto_(ss.getSheetByName('Photos'), body.photo.stationId, body.photo.photoType, photoResult);
+    upsertBuildingListRow_(ss.getSheetByName('Building List'), buildingName, buildingFolder.getId(), body.building || {});
   }
 
-  return jsonResponse_({ ok: true, stationsWritten: body.stations.length, photo: photoResult, buildingFolder: buildingFolderResult });
+  return jsonResponse_({
+    ok: true,
+    stationsWritten: body.stations.length,
+    gatewaysWritten: Array.isArray(body.gateways) ? body.gateways.length : 0,
+    displaysWritten: Array.isArray(body.displays) ? body.displays.length : 0,
+    photo: photoResult,
+    buildingFolder: buildingFolderResult,
+  });
+}
+
+// Keeps one row per building in the 'Building List' tab, upserted by name —
+// mirrors the reference sheets' Building List tab, but keyed by name instead
+// of a platform UUID since this POC doesn't create platform records yet.
+function upsertBuildingListRow_(sheet, buildingName, folderId, extra) {
+  if (!sheet) return;
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const nameCol = headers.indexOf('Building Name');
+  const rowIndex = data.slice(1).findIndex(row => row[nameCol] === buildingName);
+  const row = headers.map(h => {
+    if (h === 'Building Name') return buildingName;
+    if (h === 'Drive Folder ID') return folderId;
+    const key = { 'Address': 'address', 'Hauler': 'hauler', 'Auditor': 'auditor', 'Streams': 'streams' }[h];
+    return key && extra[key] !== undefined ? extra[key] : '';
+  });
+  if (rowIndex === -1) {
+    sheet.appendRow(row);
+  } else {
+    // Preserve UUID column (index 1) if it's already been filled in by hand/another process.
+    const uuidCol = headers.indexOf('UUID');
+    if (uuidCol !== -1) row[uuidCol] = data[rowIndex + 1][uuidCol] || '';
+    sheet.getRange(rowIndex + 2, 1, 1, headers.length).setValues([row]);
+  }
 }
 
 // Finds (by name) or creates a subfolder for this building inside the shared
@@ -167,19 +291,21 @@ function getOrCreateBuildingFolder_(parentFolderId, buildingName) {
 }
 
 // Upsert: replace all rows for this floorId, then append the incoming rows.
-// Simple and correct for the POC's "sync per floor" model; a production
-// version would want per-row versioning/merge instead of a full replace.
-function writeStations_(sheet, floorId, stations) {
+// Used for Stations, Gateways, and Displays alike — same full-replace-per-floor
+// model in all three, just with different header sets. A production version
+// would want per-row versioning/merge instead of a full replace.
+function writeSheetRows_(sheet, floorId, rows) {
+  if (!sheet) return;
   const data = sheet.getDataRange().getValues();
   const headers = data[0];
   const floorIdCol = headers.indexOf('floorId');
 
   const keepRows = data.slice(1).filter(row => row[floorIdCol] !== floorId);
 
-  const newRows = stations.map(st => headers.map(h => {
+  const newRows = rows.map(r => headers.map(h => {
     if (h === 'floorId') return floorId;
     if (h === 'lastUpdated') return new Date().toISOString();
-    return st[h] !== undefined ? st[h] : '';
+    return r[h] !== undefined ? r[h] : '';
   }));
 
   const allRows = keepRows.concat(newRows);
