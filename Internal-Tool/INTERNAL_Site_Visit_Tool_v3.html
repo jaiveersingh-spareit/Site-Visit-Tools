@@ -1698,15 +1698,21 @@ function hashString_(str){
   return hash;
 }
 
-// In-memory activity log surfaced in the Photo/Sync modal. Capped so it can't
-// grow unbounded over a long visit; not required to survive a reload (it's
-// operational visibility, not data), so it isn't persisted to localStorage.
+// Activity log surfaced in the Photo/Sync modal. Capped so it can't grow
+// unbounded over a long visit. Lives on S (so it round-trips through the
+// normal save/restore path), but is flushed here with a direct localStorage
+// write rather than calling persist() — persist() also calls
+// scheduleFloorDataSync(), and most callers of logSyncEvent() are already
+// inside a sync's own success/failure handler, so routing through persist()
+// here would re-arm another debounced sync on every single log line (and,
+// worse, loop forever on a "no changes, skipped" entry logging itself again).
 const SYNC_LOG_MAX = 40;
 function logSyncEvent(message, level){
   if (!S.syncLog) S.syncLog = [];
   S.syncLog.unshift({ message, level: level || 'info', at: Date.now() });
   if (S.syncLog.length > SYNC_LOG_MAX) S.syncLog.length = SYNC_LOG_MAX;
   renderSyncLog();
+  try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) { /* best-effort — a failed save here is already surfaced elsewhere */ }
 }
 function renderSyncLog(){
   const el = document.getElementById('sync-log-list');
