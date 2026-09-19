@@ -1607,6 +1607,7 @@ async function retryFailedPhotoSyncs(){
 function syncAllPending(){
   syncPhotoQueue();
   retryFailedPhotoSyncs();
+  if (curFloorId) syncFloorDataToBackend(curFloorId, { force: true }); // manual "Sync Now" always pushes, bypassing the no-op-skip guard
   renderPhotoQueueModal();
 }
 
@@ -1685,7 +1686,17 @@ function retryOnePhotoSync(stationId, timestamp){
 // already proven for photos, but for the floor's structural data instead.
 
 const floorDataSyncInFlight = {}; // floorId -> bool, per-floor in-flight guard
+const floorDataLastSyncedHash = {}; // floorId -> hash of the last payload actually sent, to skip no-op syncs
 let floorDataSyncDebounceTimer = null;
+
+// Small, dependency-free string hash (djb2) — good enough to detect "did the
+// flattened payload change" without pulling in a crypto lib for something
+// this low-stakes (a skip decision, not a security boundary).
+function hashString_(str){
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0;
+  return hash;
+}
 
 // In-memory activity log surfaced in the Photo/Sync modal. Capped so it can't
 // grow unbounded over a long visit; not required to survive a reload (it's
@@ -1775,14 +1786,24 @@ function scheduleFloorDataSync(){
   floorDataSyncDebounceTimer = setTimeout(() => syncFloorDataToBackend(floorId), 2000);
 }
 
-function syncFloorDataToBackend(floorId){
+function syncFloorDataToBackend(floorId, opts){
+  const force = opts && opts.force;
   const floor = (S.floors || []).find(f => f.id === floorId);
   if (!floor) return;
   if (floorDataSyncInFlight[floorId]) return; // in-flight guard, same pattern as photo sync
   if (isOffline) { logSyncEvent('Floor ' + floor.number + ' data sync deferred — offline.', 'info'); return; }
 
-  floorDataSyncInFlight[floorId] = true;
   const { stations, gateways, displays } = flattenFloorForSync(floor);
+  const payloadHash = hashString_(JSON.stringify({ stations, gateways, displays }));
+  if (!force && floorDataLastSyncedHash[floorId] === payloadHash) {
+    // Nothing actually changed since the last successful sync of this floor
+    // (e.g. a save that only touched an unrelated field, or two edits that
+    // cancelled out) — skip the network round-trip entirely.
+    logSyncEvent('Floor ' + floor.number + ' — no changes since last sync, skipped.', 'info');
+    return;
+  }
+
+  floorDataSyncInFlight[floorId] = true;
   const startedAt = Date.now();
 
   return fetch(SYNC_URL, {
@@ -1804,6 +1825,7 @@ function syncFloorDataToBackend(floorId){
       logSyncEvent('Floor ' + floor.number + ' data sync failed (' + elapsedMs + 'ms): ' + (result && result.error || 'unknown error'), 'error');
       return;
     }
+    floorDataLastSyncedHash[floorId] = payloadHash;
     logSyncEvent('Floor ' + floor.number + ' synced — ' + (result.stationsWritten||0) + ' bin rows, ' +
       (result.gatewaysWritten||0) + ' gateways, ' + (result.displaysWritten||0) + ' displays (' + elapsedMs + 'ms).', 'success');
     if (result.buildingFolder && result.buildingFolder.id && S.driveFolderId !== result.buildingFolder.id) {
