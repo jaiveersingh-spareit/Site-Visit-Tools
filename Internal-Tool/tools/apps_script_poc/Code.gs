@@ -138,12 +138,32 @@ function doPost(e) {
   writeStations_(stationsSheet, body.floorId, body.stations);
 
   let photoResult = null;
+  let buildingFolderResult = null;
   if (body.photo) {
-    photoResult = uploadPhoto_(body.photo, body.driveFolderId);
+    // Each building gets its own subfolder under the shared parent folder the
+    // client points at (driveFolderId), created once and reused on every
+    // later sync — found by name, so the client never has to remember an id.
+    const buildingName = body.photo.buildingName || body.buildingName || 'Untitled Building';
+    const buildingFolder = getOrCreateBuildingFolder_(body.driveFolderId, buildingName);
+    buildingFolderResult = { id: buildingFolder.getId(), url: buildingFolder.getUrl() };
+    photoResult = uploadPhoto_(body.photo, buildingFolder.getId());
     logPhoto_(ss.getSheetByName('Photos'), body.photo.stationId, body.photo.photoType, photoResult);
   }
 
-  return jsonResponse_({ ok: true, stationsWritten: body.stations.length, photo: photoResult });
+  return jsonResponse_({ ok: true, stationsWritten: body.stations.length, photo: photoResult, buildingFolder: buildingFolderResult });
+}
+
+// Finds (by name) or creates a subfolder for this building inside the shared
+// parent photos folder, so every sync for the same building lands in the same
+// place without the client needing to store/manage a folder id itself.
+function getOrCreateBuildingFolder_(parentFolderId, buildingName) {
+  const parent = parentFolderId ? DriveApp.getFolderById(parentFolderId) : DriveApp.getRootFolder();
+  const safeName = (buildingName || 'Untitled Building').toString().trim() || 'Untitled Building';
+  const existing = parent.getFoldersByName(safeName);
+  if (existing.hasNext()) return existing.next();
+  const created = parent.createFolder(safeName);
+  created.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return created;
 }
 
 // Upsert: replace all rows for this floorId, then append the incoming rows.

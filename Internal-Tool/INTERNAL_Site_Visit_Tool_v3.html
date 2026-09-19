@@ -730,6 +730,10 @@
       <label class="flabel">Contact Notes</label>
       <textarea id="inp-contact-notes" placeholder="Key contact info, advocate name, special instructions..." style="min-height:80px;font-size:14px;"></textarea>
     </div>
+    <div class="fgroup">
+      <label class="flabel">Drive Folder</label>
+      <div id="drive-folder-status" style="font-size:13px;color:var(--muted);padding:6px 0;">Not yet synced — a folder for this building is created automatically the first time a photo uploads.</div>
+    </div>
   </div>
 
   <div class="sec-label">Building Context Photos (optional, up to 5)</div>
@@ -1543,6 +1547,11 @@ function syncStationPhotoToBackend(stationId, photoEntry, buildingName, floorInd
     livePhoto.driveFullLink = result.photo.fullLink;
     livePhoto.synced = true;
     livePhoto.syncDurationMs = elapsedMs;
+    if (result.buildingFolder && result.buildingFolder.id && S.driveFolderId !== result.buildingFolder.id) {
+      S.driveFolderId = result.buildingFolder.id;
+      S.driveFolderLink = result.buildingFolder.url || ('https://drive.google.com/drive/folders/' + result.buildingFolder.id);
+      renderDriveFolderStatus();
+    }
     console.log('[SYNC] station photo uploaded to Drive in '+(elapsedMs/1000).toFixed(1)+'s');
     markPhotoSyncOutcome(stationId, found.floor.id, livePhoto, 'synced');
   })
@@ -1773,6 +1782,17 @@ function updateDisplayDimensions() {
 
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function renderDriveFolderStatus(){
+  const el=document.getElementById('drive-folder-status');
+  if(!el) return;
+  if(S.driveFolderLink){
+    el.innerHTML='📁 <a href="'+S.driveFolderLink+'" target="_blank" rel="noopener">Open this building\'s Drive folder</a>';
+    el.style.color='var(--accent, #2e7d32)';
+  } else {
+    el.textContent='Not yet synced — a folder for this building is created automatically the first time a photo uploads.';
+    el.style.color='var(--muted)';
+  }
+}
 function persist(){
   try{
     localStorage.setItem(LS,JSON.stringify(S));
@@ -2291,6 +2311,7 @@ window.addEventListener('offline',()=>{ isOffline=true; updateSyncStatus(); });
       document.getElementById('inp-auditor').value=S.auditor||'';
       document.getElementById('inp-contact-notes').value=S.contactNotes||'';
       document.getElementById('resume-box').style.display='block';
+      renderDriveFolderStatus();
 
       console.log('[INIT] ✓ Form restored with previous session data');
       console.log('[INIT] Streams available:', S.selectedStreams.length);
