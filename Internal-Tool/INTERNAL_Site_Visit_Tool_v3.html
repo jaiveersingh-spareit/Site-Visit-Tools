@@ -3612,6 +3612,16 @@ function updateFloorPlanTransform(){
   // ── CRITICAL: Update cached display dimensions for coordinate consistency ──
   updateDisplayDimensions();
 
+  // Re-render pins now that real dimensions are known. renderPins() is also
+  // called immediately when the floor plan screen opens (for perceived
+  // responsiveness), but on a cold reopen the plan image hasn't finished
+  // loading yet at that point, so it runs against stale/zero
+  // floorPlanDisplayState dimensions and every pin lands in the wrong spot
+  // (data intact, just positioned off — switching screens away and back
+  // "fixed" it only because the image was already cached/loaded by then).
+  // This is the actual load-complete signal, so re-render here too.
+  renderPins();
+
   // Modal visibility is controlled by user clicking button, not automatically
 }
 
