@@ -208,6 +208,35 @@ confirm localStorage no longer fills up; a stretch offline with several photos c
 then reconnecting, to confirm the drain catches up; and killing/reopening the app
 mid-upload to confirm a stuck-pending photo recovers on next launch.
 
+### 07 · Extra bins silently disappeared when creating a station — HIGH · RESOLVED 28 Sep 2026
+**Found via user testing** (Jaiveer): "when I added additional bins in a station there was
+a bug on creating the station."
+
+**Root cause:** the main Create Station modal's checkbox/size-button controls assume one
+bin per stream. "Add More Bins" is specifically for adding an *extra* bin to a stream that
+already has one selected (e.g. two Trash bins, different sizes). `setStreamSize()` — fired
+by any Small/Medium/Large click in the main modal — deselected **every** bin for that
+stream not matching the clicked size, including one just added via "Add More Bins," with
+no visible indication it happened. Any incidental size-button click in the main modal
+after using "Add More Bins" silently destroyed the extra bin before the station was ever
+created.
+
+**Fix:** bins added via "Add More Bins" are tagged (`addedViaMoreBins`); the main modal's
+controls (`setStreamSize`, `toggleStreamInclusion`'s check branch, `toggleStreamAccessory`,
+and the accessory checkbox display) now only ever touch a stream's "primary" bin — the one
+the main modal itself owns — leaving Add-More-Bins-added bins alone.
+
+**Also fixed in the same audit pass** (self-review of entry 06's IndexedDB rewrite):
+`idbOpenPhotoDb()` used to cache a rejected promise forever on first failure, permanently
+breaking photo capture for the rest of the session after one transient error; and the
+fire-and-forget `captureStationPhoto()` calls had no `.catch()`, so an unexpected error
+would fail silently. Both hardened.
+
+**Verified by:** 6 new jsdom tests reproducing the exact reported sequence (select
+Trash/Medium, add Trash/Large via Add More Bins, click a main-modal size button, then
+actually create the station) — confirms both bins survive and both end up on the created
+station. Full suite (20 tests across three files) passing. **Not yet tested on a device.**
+
 ## Second tier — known debt, not shipping blockers
 
 Carried from `../_Knowledge/02_Bug_Patterns_And_Fixes.md` and `04_Architecture_And_Storage.md`:
