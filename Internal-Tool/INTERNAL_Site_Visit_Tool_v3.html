@@ -3820,6 +3820,12 @@ function idbOpenPhotoDb(){
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
+  // Bug fix (28 Sep 2026): a failed open used to cache the REJECTED promise
+  // forever — one transient failure (briefly unavailable, a momentary
+  // storage-pressure error) would permanently break every photo capture for
+  // the rest of the session, even after the underlying condition cleared.
+  // Clear the cache on failure so the next call gets a fresh attempt.
+  _photoDbPromise.catch(() => { _photoDbPromise = null; });
   return _photoDbPromise;
 }
 async function idbPutPhoto(id, blob){
@@ -5672,7 +5678,10 @@ function renderStationBinsUI(){
           <div style="font-size:10px;color:var(--muted);margin-bottom:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Accessories</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
             ${accessories.map(acc => {
-              const selectedBin = streamBins.find(b => b.selected);
+              // Bug fix (28 Sep 2026): prefer the primary bin so the checkbox
+              // shown here matches what toggleStreamAccessory() above would
+              // actually edit.
+              const selectedBin = streamBins.find(b => b.selected && !b.addedViaMoreBins) || streamBins.find(b => b.selected);
               const isChecked = selectedBin && selectedBin.accessories && selectedBin.accessories.includes(acc);
               return `<label style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--bg);border-radius:6px;cursor:pointer;border:0.5px solid var(--border);transition:all 0.2s;">
                 <input type="checkbox" data-stream="${stream}" data-accessory="${acc}" style="cursor:pointer;width:14px;height:14px;accent-color:var(--green);"
@@ -5711,8 +5720,11 @@ function handleStreamInclusionChange(stream, event){
 
 function toggleStreamInclusion(stream, isChecked){
   if(isChecked){
-    // User checked the stream - add default bin with Small size
-    const existingBin = stationCreationBins.find(b => b.stream === stream);
+    // User checked the stream - add default bin with Small size.
+    // Bug fix (28 Sep 2026): look for the PRIMARY bin specifically (not one
+    // added via "Add More Bins") — see setStreamSize() for why the
+    // distinction matters.
+    const existingBin = stationCreationBins.find(b => b.stream === stream && !b.addedViaMoreBins);
     if(!existingBin){
       stationCreationBins.push({
         stream: stream,
@@ -5753,13 +5765,25 @@ function handleStreamSizeClick(stream, size, event){
 function setStreamSize(stream, size){
   console.log('[SIZE BUTTON] Processing:', stream, size);
 
-  // Update selected status: mark this size as selected, others as not selected
-  stationCreationBins.forEach(bin => {
-    if(bin.stream === stream){
+  // Bug fix (28 Sep 2026): only touch this stream's PRIMARY bin (the one the
+  // main modal's own checkbox/size controls own) — bins added via "Add More
+  // Bins" (addedViaMoreBins: true) are that modal's own controls' business,
+  // not the main modal's. Before this fix, clicking a size button here
+  // deselected EVERY bin for the stream that didn't match, including any
+  // extra bin just added via "Add More Bins" — silently destroying it with
+  // no indication, which is what made "additional bins" disappear by the
+  // time the station was actually created.
+  const primaryBins = stationCreationBins.filter(bin => bin.stream === stream && !bin.addedViaMoreBins);
+  if (primaryBins.length === 0) {
+    // This stream currently has only Add-More-Bins-added entries — create a
+    // primary bin rather than letting the size button silently do nothing.
+    stationCreationBins.push({ stream, scale: size, selected: true, accessories: [], photos: [] });
+  } else {
+    primaryBins.forEach(bin => {
       bin.selected = (bin.scale === size);
       console.log('[SIZE BUTTON] Updated', bin.stream, bin.scale, '-> selected:', bin.selected);
-    }
-  });
+    });
+  }
 
   console.log('[SIZE BUTTON] stationCreationBins after update:', stationCreationBins);
   renderStationBinsUI();
@@ -5774,7 +5798,11 @@ function handleStreamAccessoryChange(stream, accessory, event){
 }
 
 function toggleStreamAccessory(stream, accessory, isChecked){
-  const bin = stationCreationBins.find(b => b.stream === stream && b.selected);
+  // Bug fix (28 Sep 2026): prefer the stream's primary bin (consistent with
+  // setStreamSize/toggleStreamInclusion above); fall back to any selected
+  // bin only if this stream has nothing but Add-More-Bins-added entries.
+  const bin = stationCreationBins.find(b => b.stream === stream && b.selected && !b.addedViaMoreBins)
+    || stationCreationBins.find(b => b.stream === stream && b.selected);
   if(!bin) return;
 
   if(isChecked){
@@ -5868,14 +5896,17 @@ function addBinToStation(stream, streamIdx){
   const accCheckboxes = document.querySelectorAll(`.more-bins-acc-${streamIdx}:checked`);
   const accessories = Array.from(accCheckboxes).map(cb => cb.dataset.accessory);
 
-  // Add a NEW duplicate bin to stationCreationBins
-  // User is explicitly adding this bin, so mark it as selected
+  // Bug fix (28 Sep 2026): tagged addedViaMoreBins — see setStreamSize() and
+  // toggleStreamAccessory() below for why this matters. Add a NEW duplicate
+  // bin to stationCreationBins; user is explicitly adding this bin, so mark
+  // it as selected.
   stationCreationBins.push({
     stream: stream,
     scale: scale,
     selected: true,
     accessories: accessories,
-    photos: []
+    photos: [],
+    addedViaMoreBins: true
   });
 
   // Rerender and close modal
@@ -6064,7 +6095,12 @@ async function confirmStationCreation(){
   console.log('[STATION CREATION] Pushed to f.stations. Total stations:', f.stations.length);
 
   if(capturedPhotoOriginal){
-    captureStationPhoto(newStation.id, f.id, capturedPhotoOriginal.data, capturedPhotoOriginal.name);
+    // Bug fix (28 Sep 2026): .catch() so a failure here surfaces instead of
+    // becoming a silent unhandled promise rejection — captureStationPhoto()
+    // already handles the expected IndexedDB-write-failure case internally
+    // (with its own alert), this only catches something unexpected.
+    captureStationPhoto(newStation.id, f.id, capturedPhotoOriginal.data, capturedPhotoOriginal.name)
+      .catch(e => console.error('[STATION CREATION] Unexpected error attaching captured photo:', e));
   }
 
   // Clear pin mode and save
@@ -6347,7 +6383,12 @@ async function processStationPhotoData(fileOrDataUrl, fileName){
   const st=gSt(); if(!st) return;
 
   const attachPhoto = async (originalDataUrl, name) => {
-    await captureStationPhoto(st.id, gF()?.id, originalDataUrl, name);
+    try {
+      await captureStationPhoto(st.id, gF()?.id, originalDataUrl, name);
+    } catch (e) {
+      console.error('[PHOTO] Unexpected error attaching photo:', e);
+      alert('⚠️ Could not save this photo. Please try again.');
+    }
   };
 
   if(typeof fileOrDataUrl==='string'){
