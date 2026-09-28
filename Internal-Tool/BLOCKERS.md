@@ -65,11 +65,17 @@ subject line carries `Floor N (i of n)` so operations can see if one is missing.
 four requests of 2.5–2.7MB, all under the cap, with context photos sent exactly once.
 **Not yet run on a phone against a live deployment** — that is the field gate under 02.*
 
-### 04 · Photos sit in browser storage with a hard ceiling — HIGH · covered by 03
-Photos are held in local browser storage, capped near 5–10MB. This one bites **mid-visit**
-and can lose captured work.
-**Pilot fix:** export after each floor — now a one-tap action (see 03).
-**Proper fix:** the backend decision, deliberately parked.
+### 04 · Photos sit in browser storage with a hard ceiling — HIGH · RESOLVED 28 Sep 2026
+Photos were held as base64 text inline in the app's single localStorage blob, capped near
+5–10MB total. This bit **mid-visit** and could lose captured work — confirmed in the field
+at the Luxembourg site visit ("the app bugs out if a station is created and there are
+photos being uploaded that are still being synced").
+**Proper fix, implemented:** photo bytes now live in IndexedDB (disk-proportional quota,
+not a ~5MB wall) instead of inline in the localStorage blob — see entry 06 for the full
+architecture change and how it also fixed a related duplicate-station bug.
+**Historical pilot fix (superseded):** export after each floor (see 03) — no longer the
+primary mitigation now that the storage ceiling itself is fixed, but still a reasonable
+belt-and-suspenders habit.
 
 > Note: the documents disagree on the photo ceiling — 5–8, 10–15, 15–20 and ~50 photos all
 > appear as "the limit" across four documents. Only ~30 (the 6MB request cap) is derived
@@ -120,6 +126,87 @@ same normal-pin-placement path repositioning always used.
 (`new Function(...)`) — no syntax errors. **Not yet tested on a device** — needs someone to
 tap "+ Add Station/Gateway/Display" on a phone and confirm a pin actually appears and the
 configuration modal opens, per rule 4 (`Fixed` requires watching it work).*
+
+### 06 · Duplicate stations on double-tap, and photo sync architecture rebuilt on IndexedDB — HIGH · RESOLVED 28 Sep 2026
+**Found via field testing at the MFS Luxembourg site visit** (Jaiveer): "the app bugs out
+if a station is created and there are photos being uploaded that are still being synced,"
+and separately, local storage filling up mid-visit while photos were still syncing to
+Drive (same underlying cause as entry 04).
+
+**Bug 1 — duplicate stations.** `confirmStationCreation()` validated the station letter
+synchronously, then `await`ed photo compression before pushing the new station onto
+`f.stations`. A double-tap of "Create Station" while a photo was attached — plausible,
+since compressing a full-res camera photo takes real time on a phone — let the second tap
+pass the letter-used check before the first had committed, producing two stations
+(sometimes sharing a letter) and two overlapping photo syncs.
+**Fix:** a submission lock (`stationCreationSubmitting`) around the whole function, plus
+disabling the "Create Station" button while a submission is in flight. Verified with a
+jsdom test firing two overlapping calls during an artificially slowed compression: exactly
+one station is created, the lock releases afterward, and a subsequent legitimate creation
+still succeeds.
+
+**Bug 2 — photo sync/storage architecture.** Root cause was the same one already tracked
+as entry 04: every station photo was stored as base64 text inline in the single `S` object,
+re-`JSON.stringify`'d into localStorage's ~5–10MB quota on **every** `persist()` call, not
+just photo-related edits. Capacity and write cost both scaled with total photo history.
+
+Evaluated alternatives before building (localStorage, IndexedDB, OPFS, Cache API, no local
+persistence, a native filesystem via a wrapped app) — see the full write-up in this
+session's conversation. **Chose IndexedDB**, storing photos as real Blobs (no base64
+overhead, disk-proportional quota, well-supported on iOS Safari and Android Chrome).
+
+**What changed:**
+- Every station-photo capture path (existing-station add, station-creation attach, and
+  what used to be a separate offline-only queue) now funnels through one function,
+  `captureStationPhoto()`: write to IndexedDB first — safe on-device immediately, online
+  or offline — push lightweight metadata (no image bytes) onto the station, persist
+  (fast again), then hand off to a background drain. Capture never awaits or depends on
+  the network.
+- Local copies are kept **permanently** as an on-device backup (never evicted once
+  synced) — deliberate choice, since device storage is cheap and the goal is "never lose
+  a photo," not minimizing footprint.
+- Compression moved from capture-time to upload-time, since the local copy no longer
+  needs to be shrunk to fit localStorage — the on-device copy is now full resolution.
+- The background drain (`retryFailedPhotoSyncs`, aliased `enqueueStationPhotoDrain`) now
+  also scans for photos stuck at `pending` (not just `failed`) past an 8s grace period —
+  closes a gap where a photo whose upload never got kicked off (app killed between
+  capture and drain) would otherwise sit stuck until the user happened to reopen that
+  station.
+- Capped exponential backoff per photo (10s / 30s / 60s) on top of the existing
+  `RETRY_BATCH_SIZE` cap, so a bad-signal stretch with many queued failures doesn't
+  hammer the Apps Script endpoint on every 45s tick.
+- **Apps Script:** added a `photoId`-keyed idempotency check (Photos tab lookup) before
+  creating a new Drive file, so a retry after an *ambiguous* failure (client-side
+  timeout, but the server actually finished) reuses the existing file instead of
+  duplicating it. Self-heals an already-migrated sheet's header row — no manual
+  migration step needed for this fix to take effect on the existing test sheet.
+- Rendering (station photo carousel, sync queue modal) and export
+  (`resolvePhotoDataUrl`) updated to resolve photo bytes from IndexedDB asynchronously;
+  export still prefers the Drive full-resolution copy first, same as before.
+- `capture="environment"` added to the remaining photo inputs (station, gateway,
+  display) for a consistent direct-camera-launch experience. The OS Camera Roll already
+  keeps its own independent backup of every captured photo by default on both iOS
+  Safari and Android Chrome — confirmed as existing platform behavior, not something
+  this fix had to build.
+- Out of scope, unchanged: context/building, gateway, and display photos don't sync to
+  Drive at all, so the queue/storage work doesn't touch them.
+
+**Verified by:** 14 jsdom tests (using `fake-indexeddb` to simulate IndexedDB) covering
+the double-tap race, unified capture writing to IndexedDB with metadata-only persistence,
+backoff bookkeeping, backoff-window gating, and stuck-pending recovery past the grace
+period — all passing. **Not yet tested on a device.** One specific gap: the IndexedDB
+export fallback (`resolvePhotoDataUrl` → `blobToDataUrl`, using the standard
+`Blob.arrayBuffer()` API) isn't exercised by the automated suite, because `fake-indexeddb`
+and jsdom's Blob implementations don't interoperate cleanly for this call in the test
+harness — a real-browser-only limitation of the *test tooling*, not the target browsers,
+but worth a manual spot-check: capture a station photo, then run an export before that
+photo has synced to Drive, and confirm it appears in the output.
+
+**Needs on-device testing:** rapid double-tapping "Create Station" with a photo attached
+(confirm only one station is created); a full site visit's worth of stations/photos to
+confirm localStorage no longer fills up; a stretch offline with several photos captured,
+then reconnecting, to confirm the drain catches up; and killing/reopening the app
+mid-upload to confirm a stuck-pending photo recovers on next launch.
 
 ## Second tier — known debt, not shipping blockers
 
