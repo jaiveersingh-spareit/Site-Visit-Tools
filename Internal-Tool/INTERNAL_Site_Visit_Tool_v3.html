@@ -890,7 +890,7 @@
 
   <div class="sec-label">Station Photos <span id="st-photo-count" style="font-size:12px;color:var(--muted);font-weight:400;">(0)</span></div>
   <div class="card" style="padding:12px;">
-    <input type="file" id="st-photo-input" accept="image/*" style="display:none" onchange="handleStationPhoto(event)" />
+    <input type="file" id="st-photo-input" accept="image/*" capture="environment" style="display:none" onchange="handleStationPhoto(event)" />
     <button class="btn btn-ghost" onclick="document.getElementById('st-photo-input').click()">📷 Add Photo</button>
     <div id="st-carousel" style="position:relative;margin-top:12px;display:none;border-radius:12px;overflow:hidden;background:#f0f0f0;">
       <img id="st-photo-prev" class="photo-prev" style="display:block;margin:0;border-radius:0;width:100%;max-height:240px;object-fit:cover;" alt="Station photo" />
@@ -957,7 +957,7 @@
 
   <div class="sec-label">Gateway Photo</div>
   <div class="card" style="padding:12px;">
-    <input type="file" id="gw-photo-input" accept="image/*" style="display:none" onchange="handleGwPhoto(event)" />
+    <input type="file" id="gw-photo-input" accept="image/*" capture="environment" style="display:none" onchange="handleGwPhoto(event)" />
     <button class="btn btn-ghost" onclick="document.getElementById('gw-photo-input').click()">📷 Take / Upload Photo</button>
     <img id="gw-photo-prev" class="photo-prev" style="display:none" alt="Gateway photo" />
     <div id="gw-photo-name" style="font-size:11px;color:var(--muted);margin-top:5px;font-weight:600;"></div>
@@ -1005,7 +1005,7 @@
 
   <div class="sec-label">Display Photo</div>
   <div class="card" style="padding:12px;">
-    <input type="file" id="display-photo-input" accept="image/*" style="display:none" onchange="handleDisplayPhoto(event)" />
+    <input type="file" id="display-photo-input" accept="image/*" capture="environment" style="display:none" onchange="handleDisplayPhoto(event)" />
     <button class="btn btn-ghost" onclick="document.getElementById('display-photo-input').click()">📷 Take / Upload Photo</button>
     <img id="display-photo-prev" class="photo-prev" style="display:none" alt="Display photo" />
     <div id="display-photo-name" style="font-size:11px;color:var(--muted);margin-top:5px;font-weight:600;"></div>
@@ -1105,7 +1105,7 @@
 
     <div style="padding:0 16px;margin-bottom:12px;">
       <label class="flabel">Station Photo (optional)</label>
-      <input type="file" id="new-st-photo-input" accept="image/*" style="display:none" onchange="handleStationCreationPhoto(event)" />
+      <input type="file" id="new-st-photo-input" accept="image/*" capture="environment" style="display:none" onchange="handleStationCreationPhoto(event)" />
       <button class="btn btn-ghost" type="button" style="width:100%;" onclick="document.getElementById('new-st-photo-input').click()">📷 Add Photo</button>
       <div id="new-st-photo-preview-wrap" style="display:none;margin-top:8px;position:relative;">
         <img id="new-st-photo-preview" style="width:100%;max-height:180px;object-fit:cover;border-radius:10px;display:block;" alt="Station photo preview" />
@@ -1448,12 +1448,24 @@ function findStationById(stationId){
 // fresh, never trusting a possibly-stale reference), keeps S.failedPhotoSyncs in
 // sync so failed uploads are visible and retryable, and refreshes the carousel
 // badge/count if the affected station is the one currently open.
+// Bug fix (28 Sep 2026): capped exponential backoff per photo, so a bad-
+// signal stretch with many failed photos doesn't retry all of them on every
+// 45s tick forever (a real risk once retryFailedPhotoSyncs also started
+// picking up 'pending' photos, below — more candidates per cycle means more
+// reason to space out repeat attempts on ones that just failed).
+const PHOTO_RETRY_BACKOFF_MS = [10000, 30000, 60000]; // 10s, 30s, then hold at 60s
 function markPhotoSyncOutcome(stationId, floorId, photo, status){
   photo.syncStatus = status;
   if (!S.failedPhotoSyncs) S.failedPhotoSyncs = [];
   S.failedPhotoSyncs = S.failedPhotoSyncs.filter(f => !(f.stationId === stationId && f.timestamp === photo.timestamp));
   if (status === 'failed') {
     S.failedPhotoSyncs.push({ stationId, floorId, timestamp: photo.timestamp });
+    photo.retryCount = (photo.retryCount || 0) + 1;
+    const delay = PHOTO_RETRY_BACKOFF_MS[Math.min(photo.retryCount - 1, PHOTO_RETRY_BACKOFF_MS.length - 1)];
+    photo.retryAfter = Date.now() + delay;
+  } else if (status === 'synced') {
+    photo.retryCount = 0;
+    photo.retryAfter = 0;
   }
   if (typeof logSyncEvent === 'function') {
     logSyncEvent('Photo ' + status + ' — station ' + stationId + (status === 'failed' ? ' (will retry)' : '.'), status === 'failed' ? 'error' : 'success');
@@ -1499,16 +1511,6 @@ function syncStationPhotoToBackend(stationId, photoEntry, buildingName, floorInd
     return Promise.resolve();
   }
 
-  const sourceDataUrl = originalDataUrl || livePhoto.data;
-  const match = (sourceDataUrl || '').match(/^data:([^;]+);base64,(.*)$/s);
-  if (!match) {
-    // Malformed — nothing uploadable.
-    markPhotoSyncOutcome(stationId, found.floor.id, livePhoto, 'failed');
-    return Promise.resolve();
-  }
-  const mimeType = match[1];
-  const base64 = match[2];
-
   livePhoto.syncStatus = 'pending';
   livePhoto.syncInFlight = true;
   livePhoto.syncStartedAt = Date.now();
@@ -1520,22 +1522,54 @@ function syncStationPhotoToBackend(stationId, photoEntry, buildingName, floorInd
   // instead of the opaque internal station id.
   const photoIndex = (found.st.photos || []).indexOf(livePhoto) + 1;
 
-  return fetch(SYNC_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({
-      token: SYNC_TOKEN,
-      floorId: curFloorId || 'unassigned',
-      stations: [],
-      photo: {
-        stationId, photoType: 'station', base64, mimeType,
-        stationLetter: found.st.letter || '',
-        photoIndex: photoIndex > 0 ? photoIndex : 1,
-        buildingName: buildingName || S.building || 'Site',
-        floorIndex: floorIndex != null ? floorIndex : 0,
-      },
-      driveFolderId: SYNC_PHOTOS_FOLDER_ID,
-    }),
+  // Bug fix (28 Sep 2026): resolve the bytes to upload. Priority: bytes
+  // handed in directly (an in-memory capture still holding the original),
+  // then a legacy inline `.data` field (pre-IndexedDB photos), then the
+  // local store — compressed at upload time now rather than capture time,
+  // since the IndexedDB copy is kept at full resolution.
+  const bytesPromise = (async () => {
+    if (originalDataUrl) return originalDataUrl;
+    if (typeof livePhoto.data === 'string') return livePhoto.data;
+    const blob = await idbGetPhoto(livePhoto.timestamp);
+    if (!blob) return null;
+    return compressBlobForUpload(blob);
+  })();
+
+  return bytesPromise.then(sourceDataUrl => {
+    const match = (sourceDataUrl || '').match(/^data:([^;]+);base64,(.*)$/s);
+    if (!match) {
+      // Nothing uploadable — either malformed or the local copy is missing.
+      // Let the single .catch() below do the marking, so this failure isn't
+      // double-counted against the backoff/retry bookkeeping.
+      return Promise.reject(new Error('no uploadable photo bytes'));
+    }
+    const mimeType = match[1];
+    const base64 = match[2];
+
+    return fetch(SYNC_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        token: SYNC_TOKEN,
+        floorId: curFloorId || 'unassigned',
+        stations: [],
+        photo: {
+          // photoId: a stable id the backend can use to recognize a retry of
+          // an upload that may have already succeeded (client got no/late
+          // response, so it retried) — see findExistingPhotoUpload_ in
+          // Code.gs. Without this, an ambiguous failure (timeout after the
+          // server actually finished) could create a duplicate Drive file
+          // on retry.
+          photoId: String(livePhoto.timestamp),
+          stationId, photoType: 'station', base64, mimeType,
+          stationLetter: found.st.letter || '',
+          photoIndex: photoIndex > 0 ? photoIndex : 1,
+          buildingName: buildingName || S.building || 'Site',
+          floorIndex: floorIndex != null ? floorIndex : 0,
+        },
+        driveFolderId: SYNC_PHOTOS_FOLDER_ID,
+      }),
+    });
   })
   .then(res => res.json())
   .then(result => {
@@ -1578,9 +1612,55 @@ function syncStationPhotoToBackend(stationId, photoEntry, buildingName, floorInd
 // execution limit, which just fails the whole burst and repeats it next
 // cycle without ever making progress. Retries now run a few at a time.
 const RETRY_BATCH_SIZE = 3;
+// Bug fix (28 Sep 2026): this used to only retry S.failedPhotoSyncs entries
+// (photos whose upload was attempted AND failed). A photo that was captured
+// and marked 'pending' but never actually got its upload kicked off — e.g.
+// the app was killed/crashed between the capture-time persist() and the
+// enqueueStationPhotoDrain() call that follows it — had no path back to
+// 'synced' short of the user manually reopening that exact station. This now
+// also scans for stray 'pending' photos directly. A grace period (avoid
+// anything captured in the last 8s) keeps this from racing the normal
+// just-captured upload attempt that's already in flight; the per-photo
+// backoff (retryAfter, set in markPhotoSyncOutcome) keeps a bad-signal
+// stretch from retrying the same failures every single 45s tick.
+const STUCK_PENDING_GRACE_MS = 8000;
+function collectRetryablePhotos_(){
+  const now = Date.now();
+  const seen = new Set(); // stationId|timestamp, avoid double-queuing the same photo from both sources
+  const entries = [];
+
+  (S.failedPhotoSyncs || []).forEach(entry => {
+    const key = entry.stationId + '|' + entry.timestamp;
+    if (seen.has(key)) return;
+    seen.add(key);
+    entries.push(entry);
+  });
+
+  (S.floors || []).forEach(f => {
+    (f.stations || []).forEach(st => {
+      (st.photos || []).forEach(photo => {
+        if (photo.syncStatus !== 'pending' || photo.syncInFlight) return;
+        if (now - photo.timestamp < STUCK_PENDING_GRACE_MS) return; // still within a normal in-flight window
+        const key = st.id + '|' + photo.timestamp;
+        if (seen.has(key)) return;
+        seen.add(key);
+        entries.push({ stationId: st.id, floorId: f.id, timestamp: photo.timestamp });
+      });
+    });
+  });
+
+  return entries.filter(entry => {
+    const found = findStationById(entry.stationId);
+    const photo = found && (found.st.photos || []).find(p => p.timestamp === entry.timestamp);
+    if (!photo) return false;
+    if (photo.retryAfter && now < photo.retryAfter) return false; // still backing off
+    return true;
+  });
+}
 async function retryFailedPhotoSyncs(){
-  if (!SYNC_ENABLED || isOffline || !S.failedPhotoSyncs?.length) return;
-  const queue = S.failedPhotoSyncs.slice();
+  if (!SYNC_ENABLED || isOffline) return;
+  const queue = collectRetryablePhotos_();
+  if (!queue.length) return;
   for (let i = 0; i < queue.length; i += RETRY_BATCH_SIZE) {
     const batch = queue.slice(i, i + RETRY_BATCH_SIZE);
     await Promise.all(batch.map(entry => {
@@ -1600,6 +1680,10 @@ async function retryFailedPhotoSyncs(){
   persist();
   updateSyncStatus();
 }
+// Alias — the drain now covers both 'failed' and stuck 'pending' photos, so
+// this name reads better at the call sites that trigger it (capture,
+// reconnect, interval) than "retryFailedPhotoSyncs" alone would.
+const enqueueStationPhotoDrain = retryFailedPhotoSyncs;
 
 // Wired to the "Sync Photos" button: retries both the offline photo queue
 // (photos never even attempted because the device was offline) and any photos
@@ -1643,7 +1727,7 @@ function renderPhotoQueueModal(){
       (st.photos || []).forEach(photo => {
         if (photo.syncStatus === 'pending' || photo.syncStatus === 'failed') {
           rows.push({
-            thumb: photo.data,
+            photo,
             label: 'Floor ' + f.number + ' — Station ' + st.letter,
             status: photo.syncStatus === 'failed' ? '⚠️ Failed — will retry automatically' : '⏳ Syncing…',
             color: photo.syncStatus === 'failed' ? '#c62828' : '#616161',
@@ -1659,9 +1743,14 @@ function renderPhotoQueueModal(){
     return;
   }
 
-  container.innerHTML = rows.map(r => `
+  // Bug fix (28 Sep 2026): thumbnails render with a placeholder first (photo
+  // bytes may live in IndexedDB now, resolved asynchronously via
+  // getPhotoDisplayUrl) and get patched in by row index once resolved —
+  // keeps this function itself synchronous so every existing caller (which
+  // doesn't await it) still works unchanged.
+  container.innerHTML = rows.map((r, i) => `
     <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
-      <img src="${r.thumb || ''}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;background:#eee;flex-shrink:0;" />
+      <img id="photo-queue-thumb-${i}" src="" style="width:44px;height:44px;object-fit:cover;border-radius:6px;background:#eee;flex-shrink:0;" />
       <div style="flex:1;min-width:0;">
         <div style="font-size:13px;font-weight:600;">${r.label}</div>
         <div style="font-size:11px;color:${r.color};font-weight:600;">${r.status}</div>
@@ -1669,6 +1758,13 @@ function renderPhotoQueueModal(){
       ${r.retry ? `<button class="btn btn-sm btn-outline" onclick="retryOnePhotoSync('${r.retry.stationId}','${r.retry.timestamp}')">Retry</button>` : ''}
     </div>
   `).join('');
+
+  rows.forEach((r, i) => {
+    getPhotoDisplayUrl(r.photo).then(url => {
+      const img = document.getElementById('photo-queue-thumb-' + i);
+      if (img && url) img.src = url;
+    });
+  });
 }
 
 function retryOnePhotoSync(stationId, timestamp){
@@ -3688,6 +3784,152 @@ function compressPhotoForLocalStorage(dataUrl){
     img.onerror = () => resolve(dataUrl); // compression failed — keep the original rather than lose the photo
     img.src = dataUrl;
   });
+}
+
+// ── LOCAL PHOTO STORE (IndexedDB) ──────────────────────────────────────
+// Bug fix (28 Sep 2026): station photos used to live inline as base64 text
+// inside `S`, which is re-JSON.stringify'd into a single localStorage key on
+// every persist() call (station rename, pin move, every photo add — not just
+// photo-related edits). localStorage has a hard ~5-10MB quota, base64 adds
+// ~33% overhead on top of the image bytes, and every write re-serializes the
+// FULL accumulated photo history, not just what changed. A site visit with
+// 30-50 stations and a couple photos each blew through the quota and made
+// every save progressively slower — exactly the "storage gets used up" /
+// "sync doesn't fire fast enough" symptom reported from the field.
+//
+// Fix: photo bytes now live in IndexedDB as real Blobs (no base64 tax, and
+// IndexedDB's quota is disk-proportional, not a ~5MB wall). `S`/localStorage
+// keeps only lightweight per-photo metadata (id/timestamp, name, syncStatus)
+// — persist() stays small and fast no matter how many photos exist. The
+// local copy is never evicted (kept as a permanent on-device backup), and
+// since we're no longer squeezed by localStorage's quota, the ORIGINAL
+// full-resolution bytes are stored locally too — compression now only
+// happens at upload time, for the copy that goes to Drive.
+const PHOTO_DB_NAME = 'spareit_site_visit_photos';
+const PHOTO_DB_VERSION = 1;
+const PHOTO_STORE = 'photos';
+let _photoDbPromise = null;
+function idbOpenPhotoDb(){
+  if (_photoDbPromise) return _photoDbPromise;
+  _photoDbPromise = new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') { reject(new Error('IndexedDB not available')); return; }
+    const req = indexedDB.open(PHOTO_DB_NAME, PHOTO_DB_VERSION);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(PHOTO_STORE)) req.result.createObjectStore(PHOTO_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return _photoDbPromise;
+}
+async function idbPutPhoto(id, blob){
+  const db = await idbOpenPhotoDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PHOTO_STORE, 'readwrite');
+    tx.objectStore(PHOTO_STORE).put(blob, id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function idbGetPhoto(id){
+  const db = await idbOpenPhotoDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PHOTO_STORE, 'readonly');
+    const req = tx.objectStore(PHOTO_STORE).get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dataUrlToBlob(dataUrl){
+  const match = dataUrl.match(/^data:([^;]+);base64,(.*)$/s);
+  const mime = match ? match[1] : 'image/jpeg';
+  const bin = atob(match ? match[2] : dataUrl.split(',')[1] || '');
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+async function blobToDataUrl(blob){
+  // Uses Blob.arrayBuffer() rather than FileReader — both work in every
+  // target browser, but arrayBuffer() avoids a real-world case where
+  // FileReader's event-based API can stall (seen under some WebView/hybrid
+  // contexts, and reliably reproducible with jsdom's Blob implementation in
+  // this project's own test harness) rather than ever firing onload/onerror.
+  const buf = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  const base64 = btoa(binary);
+  return 'data:' + (blob.type || 'image/jpeg') + ';base64,' + base64;
+}
+// Compresses a Blob the same way compressPhotoForLocalStorage compresses a
+// data URL — used at UPLOAD time now (not capture time), since the local
+// copy in IndexedDB keeps full resolution.
+function compressBlobForUpload(blob){
+  return blobToDataUrl(blob).then(dataUrl => compressPhotoForLocalStorage(dataUrl));
+}
+
+// Cached object URLs for on-screen <img> display (NOT for export — see
+// resolvePhotoDataUrl for that). Resolved once per photo id per session.
+const _photoBlobUrlCache = {};
+async function getPhotoDisplayUrl(photo){
+  if (!photo) return null;
+  if (typeof photo.data === 'string') return photo.data; // legacy inline photo — already have it
+  const id = photo.timestamp;
+  if (_photoBlobUrlCache[id]) return _photoBlobUrlCache[id];
+  try {
+    const blob = await idbGetPhoto(id);
+    if (!blob) return null;
+    const url = URL.createObjectURL(blob);
+    _photoBlobUrlCache[id] = url;
+    return url;
+  } catch (e) {
+    console.error('[PHOTO] Failed to read local photo store:', e);
+    return null;
+  }
+}
+
+// ── UNIFIED STATION PHOTO CAPTURE ──────────────────────────────────────
+// Bug fix (28 Sep 2026): every station-photo capture path — attaching a
+// photo to an existing station, attaching one during station creation, and
+// what used to be a separate "offline queue" branch — now funnels through
+// this single function. The photo is written to IndexedDB FIRST, before
+// anything network-related happens, so it's safe on-device the instant the
+// shutter fires regardless of connectivity. A lightweight metadata entry
+// (no image bytes) is then pushed onto the station and persisted — fast,
+// since persist() no longer serializes image data. The actual Drive upload
+// is handed off to the background drain queue (see enqueueStationPhotoDrain)
+// and never blocks capture. This also closes the double-tap station-creation
+// race from the other direction: nothing here awaits compression before a
+// station-mutation critical section, because there no longer IS a shared
+// critical section — capture is fully decoupled from station creation.
+async function captureStationPhoto(stationId, floorId, fileOrDataUrl, name){
+  const blob = (fileOrDataUrl instanceof Blob) ? fileOrDataUrl : dataUrlToBlob(fileOrDataUrl);
+  const photoId = Date.now();
+  try {
+    await idbPutPhoto(photoId, blob);
+  } catch (e) {
+    console.error('[PHOTO] Failed to write photo to local store — capture aborted:', e);
+    alert('⚠️ Could not save this photo locally. Please try again.');
+    return null;
+  }
+
+  const floor = (floorId && S.floors.find(f => f.id === floorId)) || gF();
+  const st = floor ? (floor.stations || []).find(s => s.id === stationId) : null;
+  if (!st) {
+    console.warn('[PHOTO] Station no longer exists — photo stays in local store but is not attached:', stationId);
+    return null;
+  }
+
+  if (!st.photos) st.photos = [];
+  const photoEntry = { name: name || 'photo.jpg', timestamp: photoId, syncStatus: 'pending', retryCount: 0, retryAfter: 0 };
+  st.photos.push(photoEntry);
+  persist();
+  if (curStationId === stationId) updateStationPhotoUI();
+  renderStations();
+
+  enqueueStationPhotoDrain(); // fire-and-forget — never awaited by the capture flow
+  return photoEntry;
 }
 
 // ── IMAGE RESIZE FUNCTION ──
@@ -5792,21 +6034,23 @@ async function confirmStationCreation(){
     };
   });
 
-  // Attach the photo captured in the Create Station modal, if any — pushed
-  // onto photos[] here (rather than in the object literal) so we have a
-  // reference to the exact array entry to hand to syncStationPhotoToBackend()
-  // below, same as any other station photo add.
+  // Bug fix (28 Sep 2026): the photo captured in the Create Station modal, if
+  // any, used to be compressed inline (await compressPhotoForLocalStorage)
+  // BEFORE the station was pushed onto f.stations — the exact async gap a
+  // double-tap could race through (see the submission lock above, and the
+  // 27 Sep 2026 fix note on this function). Station creation is now a fully
+  // synchronous critical section with no photo involvement at all; the photo
+  // (if any) is captured via captureStationPhoto() AFTER the station exists,
+  // fire-and-forget, through the same unified local-store-then-sync path
+  // every other station photo capture uses.
   const capturedPhotoOriginal = stationCreationPhoto;
-  const capturedPhoto = capturedPhotoOriginal
-    ? { ...capturedPhotoOriginal, data: await compressPhotoForLocalStorage(capturedPhotoOriginal.data) }
-    : null;
 
   const newStation = {
     id: stationId,
     letter: letter,
     name: stationName,
     signage: '',
-    photos: capturedPhoto ? [capturedPhoto] : [],
+    photos: [],
     notes: '',
     bins: binsWithCodes,
     x: pendingPinX || null,
@@ -5819,8 +6063,8 @@ async function confirmStationCreation(){
   f.stations.push(newStation);
   console.log('[STATION CREATION] Pushed to f.stations. Total stations:', f.stations.length);
 
-  if(capturedPhoto){
-    syncStationPhotoToBackend(newStation.id, capturedPhoto, S.building, f.number, capturedPhotoOriginal.data);
+  if(capturedPhotoOriginal){
+    captureStationPhoto(newStation.id, f.id, capturedPhotoOriginal.data, capturedPhotoOriginal.name);
   }
 
   // Clear pin mode and save
@@ -6093,26 +6337,17 @@ function handleStationPhoto(e){
   }
 }
 
+// Bug fix (28 Sep 2026): both branches (online/offline) used to diverge here
+// — online compressed inline and uploaded directly; offline pushed onto a
+// separate S.photoQueue that only got reconciled into st.photos later. Both
+// now go through the same captureStationPhoto() path: write to IndexedDB
+// first (works identically online or offline), then let the background
+// drain queue handle the upload whenever connectivity allows.
 async function processStationPhotoData(fileOrDataUrl, fileName){
   const st=gSt(); if(!st) return;
 
-  // Shared by both branches below: compresses the copy that goes into local
-  // storage (see compressPhotoForLocalStorage) while uploading the original,
-  // full-resolution bytes to Drive — so capture-to-next-photo stays fast and
-  // crash-safe locally, without giving up quality on the Drive copy.
   const attachPhoto = async (originalDataUrl, name) => {
-    if(isOffline){
-      await queueOfflinePhoto('station','Station '+st.letter,originalDataUrl,name,{stationId:st.id,floorId:gF()?.id});
-      alert('📌 Station photo queued (offline). Will sync when online.');
-      return;
-    }
-    if(!st.photos) st.photos=[];
-    const compressed = await compressPhotoForLocalStorage(originalDataUrl);
-    const photoEntry={data:compressed,name:name,timestamp:new Date().toISOString(),syncStatus:'pending'};
-    st.photos.push(photoEntry);
-    updateStationPhotoUI();
-    persist();  // Persist the compressed copy only — original bytes never touch localStorage
-    syncStationPhotoToBackend(st.id, photoEntry, S.building, gF().number, originalDataUrl);
+    await captureStationPhoto(st.id, gF()?.id, originalDataUrl, name);
   };
 
   if(typeof fileOrDataUrl==='string'){
@@ -6149,7 +6384,16 @@ function updateStationPhotoUI(){
   const syncBadge=document.getElementById('st-photo-sync-badge');
 
   carousel.style.display='block';
-  document.getElementById('st-photo-prev').src=st.photos[stPhotoIdx].data;
+  // Bug fix (28 Sep 2026): photo bytes may now live in IndexedDB rather than
+  // inline on the photo object — resolve asynchronously (getPhotoDisplayUrl
+  // handles both the legacy inline case and the IndexedDB case, and caches
+  // the result), without blocking the rest of this function's synchronous UI
+  // updates below.
+  const __carouselPhoto = st.photos[stPhotoIdx];
+  getPhotoDisplayUrl(__carouselPhoto).then(url => {
+    const img = document.getElementById('st-photo-prev');
+    if (img) img.src = url || '';
+  });
   counter.textContent=(stPhotoIdx+1)+' / '+st.photos.length;
   prevBtn.style.display=st.photos.length>1?'block':'none';
   nextBtn.style.display=st.photos.length>1?'block':'none';
@@ -7210,7 +7454,19 @@ async function resolvePhotoDataUrl(photo){
       console.warn('[SYNC] getPhoto fetch failed, falling back to local (compressed) copy:', err);
     }
   }
-  return typeof photo.data === 'string' ? photo.data : null;
+  if (typeof photo.data === 'string') return photo.data;
+  // Bug fix (28 Sep 2026): local-only station photos now live in IndexedDB,
+  // not inline — fall back to reading the blob there (keyed by timestamp)
+  // and converting it back to a data URL for export embedding.
+  if (photo.timestamp != null) {
+    try {
+      const blob = await idbGetPhoto(photo.timestamp);
+      if (blob) return await blobToDataUrl(blob);
+    } catch (e) {
+      console.warn('[EXPORT] Local photo store lookup failed:', e);
+    }
+  }
+  return null;
 }
 
 async function collectAllPhotos(){
@@ -7233,7 +7489,7 @@ async function collectAllPhotos(){
     f.stations.forEach(st=>{
       (st.photos||[]).forEach((p,i)=>{
         const fname=`03_Station_F${f.number}_${st.letter}_Photo${i+1}.jpg`;
-        photos.push({data:p.data,driveFileId:p.driveFileId,driveFullLink:p.driveFullLink,name:fname,type:'Station',desc:`Floor ${f.number} Station ${st.letter} Photo ${i+1}`});
+        photos.push({data:p.data,timestamp:p.timestamp,driveFileId:p.driveFileId,driveFullLink:p.driveFullLink,name:fname,type:'Station',desc:`Floor ${f.number} Station ${st.letter} Photo ${i+1}`});
       });
       if(st.photoDataUrl&&!st.photos?.length){
         const fname=`03_Station_F${f.number}_${st.letter}_Photo1.jpg`;

@@ -23,7 +23,7 @@ const SHEET_SCHEMA_V2 = {
   'Stations': ['floorId', 'stationId', 'letter', 'stationName', 'floor', 'stream', 'occurrence', 'scale', 'accessory', 'accessory2', 'binId', 'bin', 'x', 'y', 'notes', 'lastUpdated'],
   'Gateways': ['floorId', 'gatewayId', 'label', 'location', 'tagId', 'x', 'y', 'notes', 'lastUpdated'],
   'Displays': ['floorId', 'displayId', 'label', 'location', 'tagId', 'x', 'y', 'notes', 'lastUpdated'],
-  'Photos': ['stationId', 'photoType', 'driveFileId', 'shareableLink', 'timestamp'],
+  'Photos': ['stationId', 'photoType', 'driveFileId', 'shareableLink', 'timestamp', 'photoId'],
 };
 const SHEET_TAB_ORDER = ['Instructions', 'Building List', 'Stations', 'Gateways', 'Displays', 'Photos'];
 
@@ -237,8 +237,22 @@ function doPost(e) {
     const buildingName = body.photo.buildingName || body.buildingName || 'Untitled Building';
     const buildingFolder = getOrCreateBuildingFolder_(body.driveFolderId, buildingName);
     buildingFolderResult = { id: buildingFolder.getId(), url: buildingFolder.getUrl() };
-    photoResult = uploadPhoto_(body.photo, buildingFolder.getId());
-    logPhoto_(ss.getSheetByName('Photos'), body.photo.stationId, body.photo.photoType, photoResult);
+    const photosSheet = ss.getSheetByName('Photos');
+
+    // Bug fix (28 Sep 2026): idempotency check. A client retry after an
+    // AMBIGUOUS failure (the fetch timed out or the connection dropped, but
+    // this execution actually finished and created the Drive file) used to
+    // have no way to tell "already uploaded" from "never attempted" — it
+    // would just upload again, leaving two Drive files for one photo. The
+    // client now sends a stable photoId with every attempt; if a Photos-tab
+    // row already exists for that id with a Drive file recorded, reuse it
+    // instead of uploading again.
+    const photoIdKey = body.photo.photoId ? String(body.photo.photoId) : null;
+    photoResult = photoIdKey ? findExistingPhotoUpload_(photosSheet, photoIdKey) : null;
+    if (!photoResult) {
+      photoResult = uploadPhoto_(body.photo, buildingFolder.getId());
+      logPhoto_(photosSheet, photoIdKey, body.photo.stationId, body.photo.photoType, photoResult);
+    }
     upsertBuildingListRow_(ss.getSheetByName('Building List'), buildingName, buildingFolder.getId(), body.building || {});
   }
 
@@ -343,8 +357,56 @@ function uploadPhoto_(photo, driveFolderId) {
   };
 }
 
-function logPhoto_(sheet, stationId, photoType, photoResult) {
-  sheet.appendRow([stationId, photoType, photoResult.fileId, photoResult.fullLink, new Date().toISOString()]);
+// Finds (or, self-healingly, adds) the 'photoId' column on an existing
+// Photos sheet — so a sheet from before this fix doesn't need a manual
+// re-migration for idempotency to start working on it.
+function ensurePhotoIdColumn_(sheet) {
+  const headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
+  let col = headers.indexOf('photoId');
+  if (col === -1) {
+    col = headers.length;
+    sheet.getRange(1, col + 1).setValue('photoId');
+  }
+  return col; // 0-based
+}
+
+// Looks up a prior upload for this photoId. Returns the same shape
+// uploadPhoto_ returns (fileId/thumbnailLink/fullLink) if a Drive file was
+// already recorded for it, otherwise null (never attempted, or attempted
+// but never confirmed — safe to upload).
+function findExistingPhotoUpload_(sheet, photoId) {
+  if (!sheet || !photoId) return null;
+  ensurePhotoIdColumn_(sheet);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const photoIdCol = headers.indexOf('photoId');
+  const fileIdCol = headers.indexOf('driveFileId');
+  const linkCol = headers.indexOf('shareableLink');
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][photoIdCol]) === photoId && data[i][fileIdCol]) {
+      return {
+        fileId: data[i][fileIdCol],
+        thumbnailLink: 'https://lh3.googleusercontent.com/d/' + data[i][fileIdCol] + '=w400',
+        fullLink: data[i][linkCol],
+        deduped: true,
+      };
+    }
+  }
+  return null;
+}
+
+function logPhoto_(sheet, photoId, stationId, photoType, photoResult) {
+  ensurePhotoIdColumn_(sheet);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const values = new Array(headers.length).fill('');
+  const set = (name, val) => { const c = headers.indexOf(name); if (c !== -1) values[c] = val; };
+  set('stationId', stationId);
+  set('photoType', photoType);
+  set('driveFileId', photoResult.fileId);
+  set('shareableLink', photoResult.fullLink);
+  set('timestamp', new Date().toISOString());
+  set('photoId', photoId || '');
+  sheet.getRange(sheet.getLastRow() + 1, 1, 1, headers.length).setValues([values]);
 }
 
 function handleGetPhoto_(e) {
