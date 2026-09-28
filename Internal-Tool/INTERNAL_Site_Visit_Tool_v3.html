@@ -1123,7 +1123,7 @@
 
     <div class="modal-actions">
       <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-station')">Cancel</button>
-      <button class="btn btn-primary" style="flex:2" onclick="confirmStationCreation()">Create Station</button>
+      <button class="btn btn-primary" id="create-station-btn" style="flex:2" onclick="confirmStationCreation()">Create Station</button>
     </div>
   </div>
 </div>
@@ -5687,9 +5687,30 @@ function handleStationCreationPhoto(e){
   }
 }
 
+let stationCreationSubmitting = false; // bug fix (28 Sep 2026): see confirmStationCreation() note below
 async function confirmStationCreation(){
   console.log('[STATION CREATION] Starting confirmStationCreation()');
   console.log('[STATION CREATION] stationCreationBins:', stationCreationBins);
+
+  // Bug fix (28 Sep 2026): confirmStationCreation() awaits photo compression
+  // (compressPhotoForLocalStorage) before it pushes the new station onto
+  // f.stations. A double-tap of "Create Station" during that await window —
+  // which is easy to trigger when a photo was captured, since compression of
+  // a full-res camera photo can take real time on a phone — let a second
+  // invocation start, pass isLetterUsed(), and race the first one, producing
+  // two stations (sometimes with the same letter) and two overlapping photo
+  // syncs. This lock makes the whole function a critical section: the second
+  // tap is dropped instead of racing. Also disable the button itself so the
+  // user gets visible feedback instead of a silently-ignored tap.
+  if(stationCreationSubmitting){
+    console.warn('[STATION CREATION] Ignoring re-entrant call — a submission is already in progress.');
+    return;
+  }
+  stationCreationSubmitting = true;
+  const createBtn = document.getElementById('create-station-btn');
+  if(createBtn) createBtn.disabled = true;
+
+  try {
 
   const letter = document.getElementById('new-st-letter').value.trim().toUpperCase();
   const stationName = document.getElementById('new-st-name').value.trim() || letter;
@@ -5845,6 +5866,11 @@ async function confirmStationCreation(){
     window.stationToPosition = stationId;
     openModal('modal-station-created');
     console.log('[STATION CREATION] ✓ Showing "Position Now or Later" modal');
+  }
+
+  } finally {
+    stationCreationSubmitting = false;
+    if(createBtn) createBtn.disabled = false;
   }
 }
 
