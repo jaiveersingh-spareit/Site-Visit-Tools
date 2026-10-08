@@ -1,0 +1,72 @@
+{
+  "testSession": "Comprehensive Zoom Accuracy Test",
+  "timestamp": "2026-06-10T23:30:00Z",
+  "criticalFinding": "centerOffsetY is NEGATIVE at all zoom levels - this is likely the root cause",
+
+  "displayDimensionsAcrossZooms": {
+    "100%": {
+      "containerHeight": 373.99,
+      "displayedHeight": 298.51,
+      "centerOffsetY": -37.74,
+      "note": "displayedHeight < containerHeight → negative offset"
+    },
+    "125%": {
+      "containerHeight": 373.99,
+      "displayedHeight": 373.13,
+      "centerOffsetY": -47.18,
+      "note": "displayedHeight still slightly < containerHeight"
+    },
+    "150%": {
+      "containerHeight": 373.99,
+      "displayedHeight": 447.76,
+      "centerOffsetY": -127.12,
+      "note": "displayedHeight > containerHeight now, but offset still negative??"
+    },
+    "175%": {
+      "containerHeight": 373.99,
+      "displayedHeight": 522.39,
+      "centerOffsetY": -353.06,
+      "note": "Large negative offset - seems wrong"
+    }
+  },
+
+  "formulaAnalysis": {
+    "currentFormula": "screenY = -centerOffsetY + displayedY",
+    "whenCenterOffsetYIsNegative": {
+      "example": "If centerOffsetY = -37.74, then -(-37.74) = +37.74",
+      "effect": "This ADDS 37.74 to all Y positions",
+      "result": "Makes pins appear LOWER on screen (higher Y values)"
+    },
+    "butWeObserved": {
+      "actualResult": "Pins appear HIGHER (smaller Y values)",
+      "difference": "37.74px too small (not too large)"
+    },
+    "possibleIssue": "The centerOffsetY calculation might be wrong, OR the formula sign is wrong"
+  },
+
+  "testEnvironment": {
+    "container": {
+      "width": 398.01,
+      "height": 373.99,
+      "positionTop": 189.59,
+      "positionLeft": 354.75
+    },
+    "floorScreen": {
+      "width": 430.00,
+      "height": 3652.25,
+      "paddingTop": 16,
+      "paddingBottom": 96
+    },
+    "header": {
+      "height": 0,
+      "position": "sticky"
+    },
+    "image": {
+      "naturalWidth": 4032,
+      "naturalHeight": 3024,
+      "aspectRatio": 1.333
+    }
+  },
+
+  "keyObservation": "The container height (373.99px) is LARGER than the displayed image height at 100% zoom (298.51px). This causes centerOffsetY to be negative, which may be causing the rendering offset."
+}

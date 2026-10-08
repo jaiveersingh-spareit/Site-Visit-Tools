@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spare-it App Diagnostic Tool</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green: #34A853;
+      --red: #EE4547;
+      --yellow: #FFD600;
+      --orange: #FF9800;
+      --dark: #2A2A2A;
+      --bg: #F5F5F5;
+      --card: #FFFFFF;
+      --muted: #757575;
+      --border: #E0E0E0;
+    }
+
+    body {
+      font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, var(--dark) 0%, #1a1a1a 100%);
+      color: var(--dark);
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: var(--card);
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, var(--green) 0%, #278041 100%);
+      color: white;
+      padding: 40px 30px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 32px;
+      margin-bottom: 8px;
+      font-weight: 800;
+    }
+
+    .header p {
+      font-size: 14px;
+      opacity: 0.95;
+      letter-spacing: 0.5px;
+    }
+
+    .content {
+      padding: 30px;
+    }
+
+    .section {
+      margin-bottom: 30px;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--dark);
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+    }
+
+    .control-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .control-group.full {
+      grid-template-columns: 1fr;
+    }
+
+    label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    input[type="file"],
+    input[type="text"] {
+      width: 100%;
+      padding: 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    input[type="file"]:focus,
+    input[type="text"]:focus {
+      outline: none;
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(52, 168, 83, 0.1);
+    }
+
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .btn-primary {
+      background: var(--green);
+      color: white;
+      width: 100%;
+      grid-column: 1 / -1;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #278041;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(52, 168, 83, 0.3);
+    }
+
+    .btn-primary:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .results-container {
+      display: none;
+      margin-top: 30px;
+      border-top: 2px solid var(--border);
+      padding-top: 30px;
+    }
+
+    .results-container.show {
+      display: block;
+    }
+
+    .summary-box {
+      background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+      padding: 24px;
+      border-radius: 12px;
+      margin-bottom: 24px;
+      border-left: 5px solid var(--green);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+
+    .score-display {
+      font-size: 48px;
+      font-weight: 800;
+      color: var(--green);
+      margin-bottom: 8px;
+    }
+
+    .score-label {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+    }
+
+    .stat {
+      text-align: center;
+      padding: 12px;
+      background: white;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    .stat.pass .stat-value { color: var(--green); }
+    .stat.fail .stat-value { color: var(--red); }
+    .stat.warning .stat-value { color: var(--yellow); }
+
+    .test-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .test-item {
+      padding: 12px 16px;
+      border-radius: 8px;
+      border-left: 4px solid;
+      background: #f8f9fa;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .test-item.pass {
+      border-left-color: var(--green);
+      background: #f0fdf4;
+    }
+
+    .test-item.fail {
+      border-left-color: var(--red);
+      background: #fdf2f2;
+    }
+
+    .test-item.warning {
+      border-left-color: var(--yellow);
+      background: #fffbf0;
+    }
+
+    .test-icon {
+      font-size: 20px;
+      min-width: 24px;
+    }
+
+    .test-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .test-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--dark);
+      margin-bottom: 2px;
+    }
+
+    .test-detail {
+      font-size: 11px;
+      color: var(--muted);
+      word-break: break-word;
+    }
+
+    .status-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+
+    .status-badge.pass {
+      background: var(--green);
+      color: white;
+    }
+
+    .status-badge.fail {
+      background: var(--red);
+      color: white;
+    }
+
+    .status-badge.warning {
+      background: var(--yellow);
+      color: var(--dark);
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid var(--border);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .error-box {
+      background: #fdf2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 16px;
+      color: #dc2626;
+      margin-bottom: 20px;
+    }
+
+    .error-box strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .info-box {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 8px;
+      padding: 16px;
+      color: #15803d;
+      margin-bottom: 20px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .file-path {
+      background: #f5f5f5;
+      padding: 12px;
+      border-radius: 6px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 12px;
+      margin: 10px 0;
+      word-break: break-all;
+      border-left: 3px solid var(--muted);
+    }
+
+    .category-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--green);
+      margin-top: 24px;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+    }
+
+    .category-title:first-child {
+      margin-top: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔬 Spare-it Diagnostic Tool</h1>
+      <p>Comprehensive app analysis and verification</p>
+    </div>
+
+    <div class="content">
+      <div class="section">
+        <div class="section-title">📂 Load App File</div>
+
+        <div class="info-box">
+          <strong>How to use:</strong><br>
+          Select your Spare-it_site_visit_form.html file below and click "Run Diagnostics" to analyze it.
+        </div>
+
+        <div class="control-group full">
+          <label>Select HTML File</label>
+          <input type="file" id="fileInput" accept=".html" />
+        </div>
+
+        <div class="control-group full">
+          <button class="btn-primary" id="runBtn" onclick="runDiagnostics()" disabled>
+            ▶ Run Diagnostics
+          </button>
+        </div>
+      </div>
+
+      <div class="results-container" id="resultsContainer">
+        <div class="section">
+          <div class="section-title">📊 Results Summary</div>
+
+          <div class="summary-box">
+            <div class="score-display" id="scoreDisplay">--</div>
+            <div class="score-label" id="scoreLabel">Loading...</div>
+
+            <div class="stats">
+              <div class="stat pass">
+                <div class="stat-value" id="passCount">0</div>
+                <div class="stat-label">Passed</div>
+              </div>
+              <div class="stat warning">
+                <div class="stat-value" id="warningCount">0</div>
+                <div class="stat-label">Warnings</div>
+              </div>
+              <div class="stat fail">
+                <div class="stat-value" id="failCount">0</div>
+                <div class="stat-label">Failed</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">🔍 Detailed Results</div>
+          <div class="test-list" id="testList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const runBtn = document.getElementById('runBtn');
+    const resultsContainer = document.getElementById('resultsContainer');
+
+    fileInput.addEventListener('change', () => {
+      runBtn.disabled = fileInput.files.length === 0;
+    });
+
+    async function runDiagnostics() {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      resultsContainer.classList.remove('show');
+
+      const text = await file.text();
+      const results = analyzeHTML(text);
+      displayResults(results);
+    }
+
+    function analyzeHTML(html) {
+      const results = {
+        passed: 0,
+        failed: 0,
+        warnings: 0,
+        tests: []
+      };
+
+      // Category 1: Phase 9 Functions
+      const phase9Functions = [
+        'dataUrlToBlob',
+        'getTimestamp',
+        'collectPhotosForZip',
+        'generateMetadataJson',
+        'buildAndDownloadZip',
+        'doExportZip'
+      ];
+
+      phase9Functions.forEach(fn => {
+        const pattern = new RegExp(`function\\s+${fn}\\s*\\(`);
+        if (pattern.test(html)) {
+          results.tests.push({
+            name: `Function: ${fn}()`,
+            category: 'Phase 9 ZIP Export',
+            status: 'pass',
+            detail: 'Function defined'
+          });
+          results.passed++;
+        } else {
+          results.tests.push({
+            name: `Function: ${fn}()`,
+            category: 'Phase 9 ZIP Export',
+            status: 'fail',
+            detail: 'Function not found'
+          });
+          results.failed++;
+        }
+      });
+
+      // Category 2: Bug Fixes - Create New Button
+      const createNewPattern = /onclick="closeModal\('modal-link-station'\);closeModal\('modal-pin-type'\);/;
+      if (createNewPattern.test(html)) {
+        results.tests.push({
+          name: 'Bug Fix #1: Create New Station Button',
+          category: 'Bug Fixes',
+          status: 'pass',
+          detail: 'Correctly closes modals before opening station creation'
+        });
+        results.passed++;
+      } else {
+        results.tests.push({
+          name: 'Bug Fix #1: Create New Station Button',
+          category: 'Bug Fixes',
+          status: 'fail',
+          detail: 'Button onclick not properly updated'
+        });
+        results.failed++;
+      }
+
+      // Category 2: Bug Fixes - Add Bin Button
+      const addBinPattern = /onclick="addSelectedBins\(\)"/;
+      if (addBinPattern.test(html)) {
+        results.tests.push({
+          name: 'Bug Fix #2: Add Bin Button',
+          category: 'Bug Fixes',
+          status: 'pass',
+          detail: 'Calls correct function (addSelectedBins)'
+        });
+        results.passed++;
+      } else if (/onclick="addBin\(\)"/.test(html)) {
+        results.tests.push({
+          name: 'Bug Fix #2: Add Bin Button',
+          category: 'Bug Fixes',
+          status: 'fail',
+          detail: 'Still calls deprecated addBin() function'
+        });
+        results.failed++;
+      } else {
+        results.tests.push({
+          name: 'Bug Fix #2: Add Bin Button',
+          category: 'Bug Fixes',
+          status: 'warning',
+          detail: 'Button not found in file'
+        });
+        results.warnings++;
+      }
+
+      // Category 3: Bug Fixes - Delete Functions
+      const deleteFunctions = [
+        { name: 'deleteBinPhoto', detail: 'Delete bin photos' },
+        { name: 'deleteGatewayPhoto', detail: 'Delete gateway photos' },
+        { name: 'deleteDisplayPhoto', detail: 'Delete display photos' }
+      ];
+
+      deleteFunctions.forEach(({ name, detail }) => {
+        const pattern = new RegExp(`function\\s+${name}\\s*\\(`);
+        if (pattern.test(html)) {
+          results.tests.push({
+            name: `Bug Fix #3: ${name}()`,
+            category: 'Bug Fixes',
+            status: 'pass',
+            detail: detail
+          });
+          results.passed++;
+        } else {
+          results.tests.push({
+            name: `Bug Fix #3: ${name}()`,
+            category: 'Bug Fixes',
+            status: 'fail',
+            detail: `Function not found`
+          });
+          results.failed++;
+        }
+      });
+
+      // Category 4: Export Buttons
+      const exportButtonPattern = /onclick="doExportZip\(\)"/g;
+      const exportButtonMatches = html.match(exportButtonPattern) || [];
+
+      if (exportButtonMatches.length >= 5) {
+        results.tests.push({
+          name: 'Export ZIP Buttons',
+          category: 'UI Elements',
+          status: 'pass',
+          detail: `All 5 buttons found and call doExportZip()`
+        });
+        results.passed++;
+      } else {
+        results.tests.push({
+          name: 'Export ZIP Buttons',
+          category: 'UI Elements',
+          status: 'fail',
+          detail: `Expected 5 buttons, found ${exportButtonMatches.length}`
+        });
+        results.failed++;
+      }
+
+      // Category 4: Button Text
+      const exportZipTextPattern = /Export ZIP/g;
+      const buttonTextMatches = html.match(exportZipTextPattern) || [];
+
+      if (buttonTextMatches.length >= 5) {
+        results.tests.push({
+          name: 'Export Button Text',
+          category: 'UI Elements',
+          status: 'pass',
+          detail: 'All buttons labeled "Export ZIP"'
+        });
+        results.passed++;
+      } else {
+        results.tests.push({
+          name: 'Export Button Text',
+          category: 'UI Elements',
+          status: 'warning',
+          detail: `Found ${buttonTextMatches.length} "Export ZIP" labels`
+        });
+        results.warnings++;
+      }
+
+      // Category 5: Libraries
+      const jsZipPattern = /jszip.*min\.js/i;
+      if (jsZipPattern.test(html)) {
+        results.tests.push({
+          name: 'JSZip Library',
+          category: 'Libraries',
+          status: 'pass',
+          detail: 'Loaded from CDN'
+        });
+        results.passed++;
+      } else {
+        results.tests.push({
+          name: 'JSZip Library',
+          category: 'Libraries',
+          status: 'fail',
+          detail: 'Not found in file'
+        });
+        results.failed++;
+      }
+
+      // Category 5: Other Libraries
+      const sheetJsPattern = /xlsx.*min\.js|sheetjs/i;
+      if (sheetJsPattern.test(html)) {
+        results.tests.push({
+          name: 'SheetJS Library',
+          category: 'Libraries',
+          status: 'pass',
+          detail: 'Excel export available'
+        });
+        results.passed++;
+      } else {
+        results.tests.push({
+          name: 'SheetJS Library',
+          category: 'Libraries',
+          status: 'warning',
+          detail: 'Not found'
+        });
+        results.warnings++;
+      }
+
+      // Category 6: Delete Buttons in UI
+      const deleteBinBtnPattern = /onclick="deleteBinPhoto\(binPhotoIdx\)"/;
+      if (deleteBinBtnPattern.test(html)) {
+        results.tests.push({
+          name: 'UI: Delete Bin Photo Button',
+          category: 'UI Elements',
+          status: 'pass',
+          detail: 'Button present in modal'
+        });
+        results.passed++;
+      } else {
+        results.tests.push({
+          name: 'UI: Delete Bin Photo Button',
+          category: 'UI Elements',
+          status: 'fail',
+          detail: 'Button not found'
+        });
+        results.failed++;
+      }
+
+      const deleteGwBtnPattern = /onclick="deleteGatewayPhoto\(\)"/;
+      if (deleteGwBtnPattern.test(html)) {
+        results.tests.push({
+          name: 'UI: Delete Gateway Photo Button',
+          category: 'UI Elements',
+          status: 'pass',
+          detail: 'Button present in modal'
+        });
+        results.passed++;
+      } else {
+        results.tests.push({
+          name: 'UI: Delete Gateway Photo Button',
+          category: 'UI Elements',
+          status: 'fail',
+          detail: 'Button not found'
+        });
+        results.failed++;
+      }
+
+      const deleteDisplayBtnPattern = /onclick="deleteDisplayPhoto\(\)"/;
+      if (deleteDisplayBtnPattern.test(html)) {
+        results.tests.push({
+          name: 'UI: Delete Display Photo Button',
+          category: 'UI Elements',
+          status: 'pass',
+          detail: 'Button present in modal'
+        });
+        results.passed++;
+      } else {
+        results.tests.push({
+          name: 'UI: Delete Display Photo Button',
+          category: 'UI Elements',
+          status: 'fail',
+          detail: 'Button not found'
+        });
+        results.failed++;
+      }
+
+      return results;
+    }
+
+    function displayResults(results) {
+      const total = results.passed + results.failed + results.warnings;
+      const percentage = total > 0 ? Math.round((results.passed / total) * 100) : 0;
+
+      document.getElementById('scoreDisplay').textContent = `${percentage}%`;
+      document.getElementById('scoreLabel').textContent =
+        percentage >= 95 ? '✅ All Systems Go!' :
+        percentage >= 80 ? '⚠️ Review Issues' :
+        percentage >= 60 ? '🟠 Multiple Issues' : '❌ Critical Issues';
+
+      document.getElementById('passCount').textContent = results.passed;
+      document.getElementById('warningCount').textContent = results.warnings;
+      document.getElementById('failCount').textContent = results.failed;
+
+      const testList = document.getElementById('testList');
+      testList.innerHTML = '';
+
+      // Group by category
+      const categories = {};
+      results.tests.forEach(test => {
+        if (!categories[test.category]) {
+          categories[test.category] = [];
+        }
+        categories[test.category].push(test);
+      });
+
+      Object.entries(categories).forEach(([category, tests]) => {
+        const categoryTitle = document.createElement('div');
+        categoryTitle.className = 'category-title';
+        categoryTitle.textContent = `📁 ${category}`;
+        testList.appendChild(categoryTitle);
+
+        tests.forEach(test => {
+          const item = document.createElement('div');
+          item.className = `test-item ${test.status}`;
+
+          const icon = test.status === 'pass' ? '✅' : test.status === 'fail' ? '❌' : '⚠️';
+          const statusIcon = test.status === 'pass' ? 'pass' : test.status === 'fail' ? 'fail' : 'warning';
+
+          item.innerHTML = `
+            <div class="test-icon">${icon}</div>
+            <div class="test-content">
+              <div class="test-name">${test.name}</div>
+              <div class="test-detail">${test.detail}</div>
+            </div>
+            <div class="status-badge ${statusIcon}">${test.status}</div>
+          `;
+
+          testList.appendChild(item);
+        });
+      });
+
+      resultsContainer.classList.add('show');
+    }
+  </script>
+</body>
+</html>

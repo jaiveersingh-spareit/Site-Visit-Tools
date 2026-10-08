@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Landing Page Debug & Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      padding: 20px;
+      background: #f5f5f5;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    h1 { color: #34A853; }
+    .test-section {
+      background: white;
+      padding: 20px;
+      margin-bottom: 16px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .test-section h2 {
+      font-size: 16px;
+      margin-top: 0;
+      border-bottom: 2px solid #34A853;
+      padding-bottom: 10px;
+    }
+    .test-item {
+      padding: 12px;
+      margin-bottom: 10px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .pass { background: #d4edda; color: #155724; border-left: 4px solid #28a745; }
+    .fail { background: #f8d7da; color: #721c24; border-left: 4px solid #dc3545; }
+    .info { background: #d1ecf1; color: #0c5460; border-left: 4px solid #17a2b8; }
+    .code {
+      background: #f4f4f4;
+      padding: 8px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+      margin: 10px 0;
+      overflow-x: auto;
+    }
+    button {
+      background: #34A853;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 10px;
+    }
+    button:hover { background: #278041; }
+    .status-good { color: #28a745; font-weight: 600; }
+    .status-bad { color: #dc3545; font-weight: 600; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+    th, td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    th {
+      background: #f5f5f5;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔍 Landing Page Debug & Verification</h1>
+  <p>Detailed analysis of s-home page functionality</p>
+
+  <div class="test-section">
+    <h2>🚀 Quick Tests</h2>
+    <button onclick="testFormFields()">Test Form Fields</button>
+    <button onclick="testButtons()">Test Buttons</button>
+    <button onclick="testModals()">Test Modals</button>
+    <button onclick="testNavigation()">Test Navigation</button>
+    <button onclick="runAllTests()">Run All Tests</button>
+  </div>
+
+  <div id="results-container"></div>
+
+  <script>
+    const tests = {
+      results: [],
+      errors: [],
+      warnings: [],
+      info: []
+    };
+
+    function log(category, message, details = '') {
+      const obj = { category, message, details };
+      tests[category.toLowerCase()].push(obj);
+      console.log(`[${category}] ${message}${details ? ': ' + details : ''}`);
+    }
+
+    // ── TEST 1: FORM FIELDS ──
+    function testFormFields() {
+      tests.results = [];
+      tests.errors = [];
+      tests.warnings = [];
+      tests.info = [];
+
+      const fields = [
+        { id: 'inp-building', type: 'text', required: true, label: 'Building Name' },
+        { id: 'inp-address', type: 'text', required: false, label: 'Building Address' },
+        { id: 'inp-hauler', type: 'text', required: false, label: 'Hauler Name' },
+        { id: 'inp-date', type: 'date', required: true, label: 'Visit Date' },
+        { id: 'inp-auditor', type: 'text', required: true, label: 'Auditor Name' },
+        { id: 'inp-contact-notes', type: 'textarea', required: false, label: 'Contact Notes' }
+      ];
+
+      console.log('=== FORM FIELDS TEST ===');
+
+      fields.forEach(field => {
+        const el = document.getElementById(field.id);
+        if (!el) {
+          log('errors', `Missing field: ${field.label}`, field.id);
+        } else {
+          const hasLabel = document.querySelector(`label[for="${field.id}"]`);
+          const statusRequired = field.required ? '(REQUIRED)' : '(optional)';
+
+          if (!hasLabel && field.required) {
+            log('warnings', `Missing label for required field: ${field.label}`, field.id);
+          } else if (hasLabel) {
+            log('results', `✓ ${field.label} ${statusRequired}`, `${field.id} - has label`);
+          } else {
+            log('results', `✓ ${field.label} ${statusRequired}`, `${field.id} - no label (optional field)`);
+          }
+        }
+      });
+
+      render();
+    }
+
+    // ── TEST 2: BUTTONS ──
+    function testButtons() {
+      tests.results = [];
+      tests.errors = [];
+      tests.warnings = [];
+      tests.info = [];
+
+      const buttons = [
+        { name: 'Select Waste Streams', handler: 'openStreamSelectHome', expected: 'Opens stream modal' },
+        { name: 'Take Photo', handler: 'promptContextPhotoUpload', expected: 'Opens camera input' },
+        { name: 'Choose File', handler: 'promptContextPhotoFile', expected: 'Opens file picker' },
+        { name: 'Begin Site Visit', id: 'btn-start-visit', handler: 'startVisit (event listener)', expected: 'Validates and navigates' },
+        { name: 'Sync Photos', id: 'sync-now-btn', handler: 'syncPhotoQueue', expected: 'Syncs offline photos' }
+      ];
+
+      console.log('=== BUTTONS TEST ===');
+
+      buttons.forEach(btn => {
+        const el = btn.id ? document.getElementById(btn.id) : Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes(btn.name));
+
+        if (!el) {
+          log('errors', `Button not found: ${btn.name}`);
+        } else {
+          const hasHandler = el.onclick || el.getAttribute('onclick');
+          if (!hasHandler && !btn.id) {
+            log('warnings', `Button may be missing handler: ${btn.name}`, `No onclick attribute`);
+          } else {
+            log('results', `✓ ${btn.name}`, `Handler: ${btn.handler}`);
+            log('info', `Expected: ${btn.expected}`);
+          }
+        }
+      });
+
+      render();
+    }
+
+    // ── TEST 3: MODALS ──
+    function testModals() {
+      tests.results = [];
+      tests.errors = [];
+      tests.warnings = [];
+      tests.info = [];
+
+      const modals = [
+        { id: 'modal-stream-select', name: 'Stream Selection', expectedTriggers: 1 },
+        { id: 'modal-validation', name: 'Validation Errors', expectedTriggers: 1 },
+        { id: 'modal-floor', name: 'Add Floor', expectedTriggers: 1 },
+        { id: 'modal-export', name: 'Export Data', expectedTriggers: 1 }
+      ];
+
+      console.log('=== MODALS TEST ===');
+
+      modals.forEach(modal => {
+        const el = document.getElementById(modal.id);
+        if (!el) {
+          log('errors', `Modal not found: ${modal.name}`, modal.id);
+        } else {
+          const triggers = Array.from(document.querySelectorAll(`[onclick*="${modal.id}"]`)).length;
+          const hasTriggers = triggers > 0;
+
+          if (!hasTriggers) {
+            log('warnings', `Modal has no triggers: ${modal.name}`, modal.id);
+          } else {
+            log('results', `✓ ${modal.name}`, `${triggers} trigger(s)`);
+          }
+
+          // Check structure
+          const hasHandle = el.querySelector('.modal-handle');
+          const hasSheet = el.querySelector('.modal-sheet');
+          const hasTitle = el.querySelector('.modal-title');
+
+          if (!hasHandle || !hasSheet || !hasTitle) {
+            log('warnings', `Modal structure incomplete: ${modal.name}`);
+          }
+        }
+      });
+
+      render();
+    }
+
+    // ── TEST 4: NAVIGATION ──
+    function testNavigation() {
+      tests.results = [];
+      tests.errors = [];
+      tests.warnings = [];
+      tests.info = [];
+
+      console.log('=== NAVIGATION TEST ===');
+
+      // Check all screens exist
+      const screens = ['s-home', 's-floors', 's-floor', 's-station', 's-gateway'];
+      screens.forEach(screenId => {
+        const el = document.getElementById(screenId);
+        if (!el) {
+          log('errors', `Screen not found: ${screenId}`);
+        } else {
+          const isActive = el.classList.contains('active');
+          log('results', `✓ Screen exists: ${screenId}`, isActive ? '(active)' : '(inactive)');
+        }
+      });
+
+      // Check for back buttons
+      const backButtons = document.querySelectorAll('.hdr-back');
+      if (backButtons.length === 0) {
+        log('warnings', 'No back buttons found');
+      } else {
+        log('results', `✓ Back buttons present`, `${backButtons.length} found`);
+      }
+
+      // Check for showS function
+      if (typeof showS === 'function') {
+        log('results', '✓ showS() function defined');
+      } else {
+        log('errors', 'showS() function not found');
+      }
+
+      render();
+    }
+
+    // ── RUN ALL TESTS ──
+    function runAllTests() {
+      testFormFields();
+      testButtons();
+      testModals();
+      testNavigation();
+    }
+
+    // ── RENDER RESULTS ──
+    function render() {
+      let html = '';
+
+      // Form fields test
+      if (tests.results.length > 0) {
+        html += '<div class="test-section"><h2>✅ Passed Checks</h2>';
+        tests.results.forEach(r => {
+          html += `<div class="test-item pass"><strong>${r.message}</strong><br><span style="opacity:0.7;">${r.details}</span></div>`;
+        });
+        html += '</div>';
+      }
+
+      if (tests.errors.length > 0) {
+        html += '<div class="test-section"><h2>❌ Errors</h2>';
+        tests.errors.forEach(e => {
+          html += `<div class="test-item fail"><strong>${e.message}</strong><br><span style="opacity:0.7;">${e.details}</span></div>`;
+        });
+        html += '</div>';
+      }
+
+      if (tests.warnings.length > 0) {
+        html += '<div class="test-section"><h2>⚠️ Warnings</h2>';
+        tests.warnings.forEach(w => {
+          html += `<div class="test-item info"><strong>${w.message}</strong><br><span style="opacity:0.7;">${w.details}</span></div>`;
+        });
+        html += '</div>';
+      }
+
+      if (tests.info.length > 0) {
+        html += '<div class="test-section"><h2>ℹ️ Info</h2>';
+        tests.info.slice(0, 5).forEach(i => {
+          html += `<div class="test-item info"><strong>${i.message}</strong><br><span style="opacity:0.7;">${i.details}</span></div>`;
+        });
+        if (tests.info.length > 5) {
+          html += `<div class="test-item info">... and ${tests.info.length - 5} more info items</div>`;
+        }
+        html += '</div>';
+      }
+
+      // Summary
+      const passCount = tests.results.length;
+      const errorCount = tests.errors.length;
+      const warningCount = tests.warnings.length;
+      const totalIssues = errorCount + warningCount;
+
+      html += `<div class="test-section" style="margin-top: 30px; padding: 20px; background: ${totalIssues === 0 ? '#d4edda' : '#fff3cd'}; border-left: 4px solid ${totalIssues === 0 ? '#28a745' : '#ffc107'};">
+        <h2 style="margin-top: 0; border: none;">📋 Summary</h2>
+        <p><strong>Checks Passed:</strong> <span class="${totalIssues === 0 ? 'status-good' : ''}">${passCount}</span></p>
+        <p><strong>Errors:</strong> <span class="${errorCount > 0 ? 'status-bad' : 'status-good'}">${errorCount}</span></p>
+        <p><strong>Warnings:</strong> <span class="${warningCount > 0 ? 'status-bad' : 'status-good'}">${warningCount}</span></p>
+        <p style="margin-top: 16px; font-size: 14px;">
+          ${totalIssues === 0 ? '✅ <strong>All checks passed!</strong>' : `⚠️ <strong>${totalIssues} issue(s) found</strong>`}
+        </p>
+      </div>`;
+
+      document.getElementById('results-container').innerHTML = html;
+    }
+
+    // Initial message
+    document.getElementById('results-container').innerHTML = `
+      <div class="test-section">
+        <p>Click any button above to run specific tests, or click <strong>Run All Tests</strong> to test everything at once.</p>
+        <p style="color: #757575; font-size: 13px;">Tests will check form fields, buttons, modals, and navigation on the landing page.</p>
+      </div>
+    `;
+  </script>
+</body>
+</html>

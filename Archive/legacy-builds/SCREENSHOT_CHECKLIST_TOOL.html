@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Screenshot Checklist - Site Visit Form</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #34A853 0%, #2A6A3D 100%);
+      color: white;
+      padding: 30px;
+      border-radius: 12px;
+      margin-bottom: 30px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .header h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+
+    .header p {
+      opacity: 0.9;
+      margin-bottom: 15px;
+    }
+
+    .progress-bar {
+      background: rgba(255,255,255,0.3);
+      height: 10px;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-top: 20px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: #fff;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .progress-text {
+      text-align: right;
+      font-size: 12px;
+      margin-top: 8px;
+      opacity: 0.9;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      margin-bottom: 30px;
+    }
+
+    .stat-card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      text-align: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .stat-number {
+      font-size: 32px;
+      font-weight: 700;
+      color: #34A853;
+      margin-bottom: 8px;
+    }
+
+    .stat-label {
+      font-size: 14px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .section {
+      background: white;
+      margin-bottom: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      overflow: hidden;
+    }
+
+    .section-header {
+      background: #f9f9f9;
+      padding: 20px;
+      border-left: 4px solid #34A853;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .section-header:hover {
+      background: #f5f5f5;
+    }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #2A2A2A;
+    }
+
+    .section-count {
+      background: #34A853;
+      color: white;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 15px;
+    }
+
+    .section-body {
+      display: none;
+      padding: 20px;
+    }
+
+    .section-body.active {
+      display: block;
+    }
+
+    .item-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 15px;
+    }
+
+    .item {
+      background: #f9f9f9;
+      padding: 15px;
+      border-radius: 8px;
+      border-left: 3px solid #e0e0e0;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .item:hover {
+      background: #f0f0f0;
+      border-left-color: #34A853;
+    }
+
+    .item.completed {
+      background: #E8F5E9;
+      border-left-color: #34A853;
+    }
+
+    .item-checkbox {
+      width: 20px;
+      height: 20px;
+      border: 2px solid #ccc;
+      border-radius: 4px;
+      flex-shrink: 0;
+      margin-top: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .item.completed .item-checkbox {
+      background: #34A853;
+      border-color: #34A853;
+      color: white;
+    }
+
+    .item-content {
+      flex: 1;
+    }
+
+    .item-name {
+      font-weight: 600;
+      color: #2A2A2A;
+      margin-bottom: 5px;
+      font-size: 14px;
+    }
+
+    .item-desc {
+      font-size: 12px;
+      color: #666;
+      line-height: 1.4;
+    }
+
+    .controls {
+      padding: 20px;
+      border-top: 1px solid #e0e0e0;
+      display: flex;
+      gap: 10px;
+      background: #f9f9f9;
+    }
+
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+      background: #34A853;
+      color: white;
+      flex: 1;
+    }
+
+    .btn-primary:hover {
+      background: #2A6A3D;
+    }
+
+    .btn-secondary {
+      background: #e0e0e0;
+      color: #2A2A2A;
+    }
+
+    .btn-secondary:hover {
+      background: #d0d0d0;
+    }
+
+    .summary {
+      background: #E8F5E9;
+      border: 1px solid #34A853;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 30px;
+      display: none;
+    }
+
+    .summary.active {
+      display: block;
+    }
+
+    .summary h3 {
+      color: #34A853;
+      margin-bottom: 10px;
+    }
+
+    .summary p {
+      color: #666;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .toggle-arrow {
+      font-size: 12px;
+      opacity: 0.5;
+    }
+
+    .section-body.active .toggle-arrow {
+      transform: rotate(180deg);
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📸 Screenshot Capture Checklist</h1>
+  <p>Spare-it Site Visit Form - Miro Board Documentation</p>
+  <div class="progress-bar">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+  <div class="progress-text">
+    <span id="progressText">0% Complete</span>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat-card">
+    <div class="stat-number" id="totalCount">0</div>
+    <div class="stat-label">Total Screenshots</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number" id="completedCount">0</div>
+    <div class="stat-label">Completed</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number" id="remainingCount">0</div>
+    <div class="stat-label">Remaining</div>
+  </div>
+</div>
+
+<div class="summary" id="summary">
+  <h3>✅ All Screenshots Captured!</h3>
+  <p>Great work! You've completed all 85+ screenshots. Next step: Upload them to your Miro board and organize by section.</p>
+</div>
+
+<!-- SECTION 1 -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <div>
+      <span class="section-title">S1: Home Screen</span>
+      <span class="section-count" id="count-1">0/4</span>
+    </div>
+    <span class="toggle-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div class="item-grid" id="section-1-items"></div>
+  </div>
+</div>
+
+<!-- SECTION 2 -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <div>
+      <span class="section-title">S2: Floors List</span>
+      <span class="section-count" id="count-2">0/4</span>
+    </div>
+    <span class="toggle-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div class="item-grid" id="section-2-items"></div>
+  </div>
+</div>
+
+<!-- SECTION 3 -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <div>
+      <span class="section-title">S3: Floor Detail</span>
+      <span class="section-count" id="count-3">0/11</span>
+    </div>
+    <span class="toggle-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div class="item-grid" id="section-3-items"></div>
+  </div>
+</div>
+
+<!-- SECTION 4 -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <div>
+      <span class="section-title">S4: Station Detail</span>
+      <span class="section-count" id="count-4">0/7</span>
+    </div>
+    <span class="toggle-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div class="item-grid" id="section-4-items"></div>
+  </div>
+</div>
+
+<!-- SECTION 5 -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <div>
+      <span class="section-title">S5: Gateway Detail</span>
+      <span class="section-count" id="count-5">0/5</span>
+    </div>
+    <span class="toggle-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div class="item-grid" id="section-5-items"></div>
+  </div>
+</div>
+
+<!-- SECTION 6 -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <div>
+      <span class="section-title">S6: Display Detail</span>
+      <span class="section-count" id="count-6">0/4</span>
+    </div>
+    <span class="toggle-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div class="item-grid" id="section-6-items"></div>
+  </div>
+</div>
+
+<!-- SECTION 7 -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <div>
+      <span class="section-title">Modals</span>
+      <span class="section-count" id="count-7">0/25</span>
+    </div>
+    <span class="toggle-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div class="item-grid" id="section-7-items"></div>
+  </div>
+</div>
+
+<!-- SECTION 8 -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <div>
+      <span class="section-title">Workflows</span>
+      <span class="section-count" id="count-8">0/28</span>
+    </div>
+    <span class="toggle-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div class="item-grid" id="section-8-items"></div>
+  </div>
+</div>
+
+<!-- SECTION 9 -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <div>
+      <span class="section-title">Features</span>
+      <span class="section-count" id="count-9">0/12</span>
+    </div>
+    <span class="toggle-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div class="item-grid" id="section-9-items"></div>
+  </div>
+</div>
+
+<!-- SECTION 10 -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <div>
+      <span class="section-title">Errors & Edge Cases</span>
+      <span class="section-count" id="count-10">0/8</span>
+    </div>
+    <span class="toggle-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div class="item-grid" id="section-10-items"></div>
+  </div>
+</div>
+
+<!-- SECTION 11 -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <div>
+      <span class="section-title">Comparisons (Before/After)</span>
+      <span class="section-count" id="count-11">0/8</span>
+    </div>
+    <span class="toggle-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div class="item-grid" id="section-11-items"></div>
+  </div>
+</div>
+
+<script>
+const screenshots = {
+  1: [
+    { name: 'S1_empty-state.png', desc: 'Home screen with empty fields' },
+    { name: 'S1_form-filled.png', desc: 'Home screen with all form data' },
+    { name: 'S1_streams-selector-modal.png', desc: 'Waste streams selection modal' },
+    { name: 'S1_validation-errors.png', desc: 'Validation error messages' }
+  ],
+  2: [
+    { name: 'S2_empty-state.png', desc: 'Floors list with no floors' },
+    { name: 'S2_with-floors.png', desc: 'Floors list with 1-3 floors' },
+    { name: 'S2_floor-card-detail.png', desc: 'Single floor card focused' },
+    { name: 'S2_add-floor-modal.png', desc: 'Add floor creation modal' }
+  ],
+  3: [
+    { name: 'S3_no-floorplan.png', desc: 'Floor detail without floor plan' },
+    { name: 'S3_with-floorplan.png', desc: 'Floor detail with floor plan' },
+    { name: 'S3_complete-lists.png', desc: 'All three lists visible' },
+    { name: 'S3_station-positioned.png', desc: 'Station with positioned status' },
+    { name: 'S3_station-not-positioned.png', desc: 'Station with warning status' },
+    { name: 'S3_gateway-in-list.png', desc: 'Gateway in Gateways list' },
+    { name: 'S3_display-in-list.png', desc: 'Display in Displays list' },
+    { name: 'S3_floor-with-all-pins.png', desc: 'Floor plan with all pin types' },
+    { name: 'S3_pin-mode-active.png', desc: 'Pin placement mode active' },
+    { name: 'S3_green-highlight.png', desc: 'Green highlight at tap location' },
+    { name: 'S3_edit-mode-dragging.png', desc: 'Pin in edit/drag mode' }
+  ],
+  4: [
+    { name: 'S4_complete-view.png', desc: 'Full station detail view' },
+    { name: 'S4_with-photo.png', desc: 'Station detail with photo' },
+    { name: 'S4_without-photo.png', desc: 'Station detail without photo' },
+    { name: 'S4_positioned-state.png', desc: 'Station in positioned state' },
+    { name: 'S4_not-positioned-state.png', desc: 'Station in not-positioned state' },
+    { name: 'S4_bins-modal.png', desc: 'Bins selection modal' },
+    { name: 'S4_edit-bin-modal.png', desc: 'Bin editing modal' }
+  ],
+  5: [
+    { name: 'S5_complete-view.png', desc: 'Full gateway detail view' },
+    { name: 'S5_with-photo.png', desc: 'Gateway detail with photo' },
+    { name: 'S5_without-photo.png', desc: 'Gateway detail without photo' },
+    { name: 'S5_positioned.png', desc: 'Gateway in positioned state' },
+    { name: 'S5_rename-modal.png', desc: 'Gateway rename modal' }
+  ],
+  6: [
+    { name: 'S6_complete-view.png', desc: 'Full display detail view' },
+    { name: 'S6_with-photo.png', desc: 'Display detail with photo' },
+    { name: 'S6_without-photo.png', desc: 'Display detail without photo' },
+    { name: 'S6_positioned.png', desc: 'Display in positioned state' }
+  ],
+  7: [
+    { name: 'Modal_station_initial.png', desc: 'Station creation modal - initial' },
+    { name: 'Modal_station_filled.png', desc: 'Station modal with data' },
+    { name: 'Modal_station_error.png', desc: 'Station modal validation error' },
+    { name: 'Modal_gateway_initial.png', desc: 'Gateway creation modal' },
+    { name: 'Modal_gateway_filled.png', desc: 'Gateway modal with data' },
+    { name: 'Modal_display_initial.png', desc: 'Display creation modal' },
+    { name: 'Modal_display_filled.png', desc: 'Display modal with data' },
+    { name: 'Modal_object-type_full.png', desc: 'Object type selection (3 buttons)' },
+    { name: 'Modal_object-type_station.png', desc: 'Object type with Station highlighted' },
+    { name: 'Modal_object-type_gateway.png', desc: 'Object type with Gateway highlighted' },
+    { name: 'Modal_object-type_display.png', desc: 'Object type with Display highlighted' },
+    { name: 'Modal_location-confirmed_station.png', desc: 'Location confirmation for station' },
+    { name: 'Modal_location-confirmed_gateway.png', desc: 'Location confirmation for gateway' },
+    { name: 'Modal_location-confirmed_display.png', desc: 'Location confirmation for display' },
+    { name: 'Modal_success_station.png', desc: 'Success modal for station' },
+    { name: 'Modal_success_gateway.png', desc: 'Success modal for gateway' },
+    { name: 'Modal_success_display.png', desc: 'Success modal for display' },
+    { name: 'Modal_link-station.png', desc: 'Link unpinned station modal' },
+    { name: 'Modal_bin-select.png', desc: 'Waste stream selection modal' },
+    { name: 'Modal_edit-bin.png', desc: 'Bin editing modal' },
+    { name: 'Modal_export.png', desc: 'CSV export modal' },
+    { name: 'Modal_validation_empty.png', desc: 'Validation error modal' },
+    { name: 'Modal_position-new.png', desc: 'Position new object prompt' },
+    { name: 'Modal_floor-created.png', desc: 'Floor creation success' },
+    { name: 'Modal_photo-capture.png', desc: 'Photo capture interface' }
+  ],
+  8: [
+    { name: 'Workflow1_step1_floor-detail.png', desc: 'Workflow 1: Initial floor detail' },
+    { name: 'Workflow1_step2_add-pin-active.png', desc: 'Workflow 1: Pin mode active' },
+    { name: 'Workflow1_step3_green-highlight.png', desc: 'Workflow 1: Green highlight' },
+    { name: 'Workflow1_step4_object-type.png', desc: 'Workflow 1: Object type modal' },
+    { name: 'Workflow1_step5_station-form.png', desc: 'Workflow 1: Station form' },
+    { name: 'Workflow1_step6_success.png', desc: 'Workflow 1: Success modal' },
+    { name: 'Workflow1_step7_result.png', desc: 'Workflow 1: Final result' },
+    { name: 'Workflow2_step1_add-button.png', desc: 'Workflow 2: Add Station button' },
+    { name: 'Workflow2_step2_form.png', desc: 'Workflow 2: Form modal' },
+    { name: 'Workflow2_step3_success.png', desc: 'Workflow 2: Success modal' },
+    { name: 'Workflow2_step4_not-positioned.png', desc: 'Workflow 2: Not positioned status' },
+    { name: 'Workflow2_step5_floor-plan.png', desc: 'Workflow 2: Floor plan for positioning' },
+    { name: 'Workflow2_step6_confirm.png', desc: 'Workflow 2: Confirmation modal' },
+    { name: 'Workflow2_step7_final.png', desc: 'Workflow 2: Final positioned state' },
+    { name: 'Workflow3_step1_add-button.png', desc: 'Workflow 3 (Gateway): Add button' },
+    { name: 'Workflow3_step2_form.png', desc: 'Workflow 3: Form modal' },
+    { name: 'Workflow3_step3_success.png', desc: 'Workflow 3: Success modal' },
+    { name: 'Workflow3_step4_not-positioned.png', desc: 'Workflow 3: Not positioned' },
+    { name: 'Workflow3_step5_floor-plan.png', desc: 'Workflow 3: Floor plan' },
+    { name: 'Workflow3_step6_confirm.png', desc: 'Workflow 3: Confirmation' },
+    { name: 'Workflow3_step7_final.png', desc: 'Workflow 3: Final positioned' },
+    { name: 'Workflow4_step1_add-button.png', desc: 'Workflow 4 (Display): Add button' },
+    { name: 'Workflow4_step2_form.png', desc: 'Workflow 4: Form modal' },
+    { name: 'Workflow4_step3_success.png', desc: 'Workflow 4: Success modal' },
+    { name: 'Workflow4_step4_not-positioned.png', desc: 'Workflow 4: Not positioned' },
+    { name: 'Workflow4_step5_floor-plan.png', desc: 'Workflow 4: Floor plan' },
+    { name: 'Workflow4_step6_confirm.png', desc: 'Workflow 4: Confirmation' },
+    { name: 'Workflow4_step7_final.png', desc: 'Workflow 4: Final positioned' }
+  ],
+  9: [
+    { name: 'Feature_colors-legend.png', desc: 'Color coding system' },
+    { name: 'Feature_not-positioned.png', desc: 'Not positioned indicator' },
+    { name: 'Feature_positioned.png', desc: 'Positioned indicator' },
+    { name: 'Feature_all-pins-on-map.png', desc: 'All three pin types on map' },
+    { name: 'Feature_photo-station.png', desc: 'Station with photo' },
+    { name: 'Feature_photo-gateway.png', desc: 'Gateway with photo' },
+    { name: 'Feature_photo-display.png', desc: 'Display with photo' },
+    { name: 'Feature_edit-station.png', desc: 'Station editable fields' },
+    { name: 'Feature_edit-gateway.png', desc: 'Gateway editable fields' },
+    { name: 'Feature_edit-display.png', desc: 'Display editable fields' },
+    { name: 'Feature_pin-edit-mode.png', desc: 'Pin edit mode on floor plan' },
+    { name: 'Feature_header-bar.png', desc: 'Header with navigation' }
+  ],
+  10: [
+    { name: 'Error_validation_empty-building.png', desc: 'Missing building name error' },
+    { name: 'Error_validation_empty-label.png', desc: 'Missing label error' },
+    { name: 'Error_validation_missing-streams.png', desc: 'No waste streams error' },
+    { name: 'Empty_floors.png', desc: 'No floors created' },
+    { name: 'Empty_stations.png', desc: 'No stations on floor' },
+    { name: 'Empty_gateways.png', desc: 'No gateways on floor' },
+    { name: 'Empty_displays.png', desc: 'No displays on floor' },
+    { name: 'Empty_floor-plan.png', desc: 'No floor plan uploaded' }
+  ],
+  11: [
+    { name: 'Compare_Phase2_before.png', desc: 'Phase 2: Workflows before' },
+    { name: 'Compare_Phase2_after.png', desc: 'Phase 2: Workflows after' },
+    { name: 'Compare_Phase4_before.png', desc: 'Phase 4: Display visibility before' },
+    { name: 'Compare_Phase4_after.png', desc: 'Phase 4: Display visibility after' },
+    { name: 'Compare_Phase5_before.png', desc: 'Phase 5: Data persistence before' },
+    { name: 'Compare_Phase5_after.png', desc: 'Phase 5: Data persistence after' },
+    { name: 'Compare_Phase7_before.png', desc: 'Phase 7: UI polish before' },
+    { name: 'Compare_Phase7_after.png', desc: 'Phase 7: UI polish after' }
+  ]
+};
+
+// Initialize the checklist
+function initChecklist() {
+  let totalCount = 0;
+
+  Object.keys(screenshots).forEach(section => {
+    const items = screenshots[section];
+    const container = document.getElementById(`section-${section}-items`);
+
+    items.forEach(item => {
+      const completed = localStorage.getItem(`screenshot-${item.name}`) === 'true';
+      totalCount++;
+
+      const itemEl = document.createElement('div');
+      itemEl.className = `item ${completed ? 'completed' : ''}`;
+      itemEl.onclick = () => toggleScreenshot(item.name, itemEl);
+
+      itemEl.innerHTML = `
+        <div class="item-checkbox">${completed ? '✓' : ''}</div>
+        <div class="item-content">
+          <div class="item-name">${item.name}</div>
+          <div class="item-desc">${item.desc}</div>
+        </div>
+      `;
+
+      container.appendChild(itemEl);
+    });
+
+    updateSectionCount(section);
+  });
+
+  document.getElementById('totalCount').textContent = totalCount;
+  updateProgress();
+}
+
+function toggleScreenshot(name, element) {
+  const isCompleted = localStorage.getItem(`screenshot-${name}`) === 'true';
+  localStorage.setItem(`screenshot-${name}`, !isCompleted ? 'true' : 'false');
+
+  if (!isCompleted) {
+    element.classList.add('completed');
+    element.querySelector('.item-checkbox').textContent = '✓';
+  } else {
+    element.classList.remove('completed');
+    element.querySelector('.item-checkbox').textContent = '';
+  }
+
+  updateProgress();
+}
+
+function updateSectionCount(section) {
+  const items = screenshots[section];
+  const completed = items.filter(item =>
+    localStorage.getItem(`screenshot-${item.name}`) === 'true'
+  ).length;
+
+  document.getElementById(`count-${section}`).textContent = `${completed}/${items.length}`;
+}
+
+function updateProgress() {
+  let totalCompleted = 0;
+  let totalCount = 0;
+
+  Object.keys(screenshots).forEach(section => {
+    const items = screenshots[section];
+    items.forEach(item => {
+      totalCount++;
+      if (localStorage.getItem(`screenshot-${item.name}`) === 'true') {
+        totalCompleted++;
+      }
+    });
+    updateSectionCount(section);
+  });
+
+  const percentage = Math.round((totalCompleted / totalCount) * 100);
+  document.getElementById('progressFill').style.width = percentage + '%';
+  document.getElementById('progressText').textContent = `${percentage}% Complete (${totalCompleted}/${totalCount})`;
+  document.getElementById('completedCount').textContent = totalCompleted;
+  document.getElementById('remainingCount').textContent = totalCount - totalCompleted;
+
+  if (percentage === 100) {
+    document.getElementById('summary').classList.add('active');
+  } else {
+    document.getElementById('summary').classList.remove('active');
+  }
+}
+
+function toggleSection(headerEl) {
+  const body = headerEl.nextElementSibling;
+  body.classList.toggle('active');
+}
+
+// Initialize on page load
+initChecklist();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MVP Full Flow — Actual Screenshots</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Montserrat', -apple-system, sans-serif;
+      background: #f8f8f8;
+      color: #2A2A2A;
+      padding: 40px 20px;
+    }
+    .container { max-width: 1600px; margin: 0 auto; }
+    h1 { font-size: 28px; font-weight: 700; margin-bottom: 12px; }
+    .subtitle { font-size: 14px; color: #757575; margin-bottom: 40px; }
+
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; margin-bottom: 40px; }
+
+    .phase { padding: 24px 0; }
+
+    .phase-label {
+      font-size: 11px;
+      font-weight: 800;
+      color: #757575;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .phase-label::before {
+      content: '';
+      display: inline-block;
+      width: 4px;
+      height: 4px;
+      background: #34A853;
+      border-radius: 50%;
+    }
+
+    .screen-item { margin-bottom: 24px; }
+
+    .screen-preview {
+      background: white;
+      border: 1px solid #E0E0E0;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      margin-bottom: 12px;
+      min-height: 320px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+    }
+
+    .screen-preview img {
+      max-width: 100%;
+      max-height: 100%;
+      height: auto;
+      object-fit: contain;
+    }
+
+    .screen-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #2A2A2A;
+      margin-bottom: 4px;
+    }
+
+    .screen-description {
+      font-size: 11px;
+      color: #757575;
+    }
+
+    .arrow {
+      text-align: center;
+      font-size: 24px;
+      color: #34A853;
+      margin: 12px 0;
+      font-weight: 600;
+    }
+
+    .screen-meta {
+      font-size: 10px;
+      font-weight: 600;
+      color: white;
+      background: #34A853;
+      padding: 4px 8px;
+      border-radius: 4px;
+      display: inline-block;
+      margin-top: 8px;
+    }
+
+    .footer {
+      margin-top: 60px;
+      padding: 24px;
+      background: white;
+      border-radius: 12px;
+      border: 1px solid #E0E0E0;
+    }
+
+    .footer p { font-size: 12px; color: #757575; margin-bottom: 8px; }
+    .footer strong { color: #2A2A2A; }
+
+    .placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f0f0f0;
+      color: #999;
+      font-size: 12px;
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    @media print {
+      body { background: white; padding: 0; }
+      .grid { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>MVP Full Flow — Actual Screenshots</h1>
+  <p class="subtitle">Complete user journey with real app screenshots</p>
+
+  <div class="grid">
+
+    <!-- SETUP PHASE -->
+    <div class="phase">
+      <div class="phase-label">Setup Phase</div>
+
+      <!-- Screen 1: Landing Page -->
+      <div class="screen-item">
+        <div class="screen-label">1. Landing Page</div>
+        <div class="screen-description">Building info & setup form</div>
+        <div class="screen-preview">
+          <img src="https://placeholder.com/280x400?text=1.+Landing+Page" alt="Landing Page Screenshot" />
+        </div>
+        <div class="arrow">↓</div>
+      </div>
+
+      <!-- Screen 2: Waste Streams -->
+      <div class="screen-item">
+        <div class="screen-label">2. Waste Streams</div>
+        <div class="screen-description">Select available streams</div>
+        <div class="screen-preview">
+          <img src="https://placeholder.com/280x400?text=2.+Waste+Streams" alt="Waste Streams Screenshot" />
+        </div>
+        <div class="arrow">↓</div>
+      </div>
+
+      <!-- Screen 3: Floors -->
+      <div class="screen-item">
+        <div class="screen-label">3. Floors</div>
+        <div class="screen-description">Floor list & upload plans</div>
+        <div class="screen-preview">
+          <img src="https://placeholder.com/280x400?text=3.+Floors" alt="Floors Screenshot" />
+        </div>
+      </div>
+    </div>
+
+    <!-- EXECUTION PHASE -->
+    <div class="phase">
+      <div class="phase-label">Execution Phase</div>
+
+      <!-- Screen 4: Floor Detail -->
+      <div class="screen-item">
+        <div class="screen-label">4. Floor Detail</div>
+        <div class="screen-description">Upload floor plan</div>
+        <div class="screen-preview">
+          <img src="https://placeholder.com/280x400?text=4.+Floor+Detail" alt="Floor Detail Screenshot" />
+        </div>
+        <div class="arrow">↓</div>
+      </div>
+
+      <!-- Screen 5: Add Objects -->
+      <div class="screen-item">
+        <div class="screen-label">5. Add Objects</div>
+        <div class="screen-description">Stations, gateways, displays</div>
+        <div class="screen-preview">
+          <img src="https://placeholder.com/280x400?text=5.+Add+Objects" alt="Add Objects Screenshot" />
+        </div>
+        <div class="arrow">↓</div>
+      </div>
+
+      <!-- Screen 6: Create Station -->
+      <div class="screen-item">
+        <div class="screen-label">6. Create Station</div>
+        <div class="screen-description">Configure bins & streams</div>
+        <div class="screen-preview">
+          <img src="https://placeholder.com/280x400?text=6.+Create+Station" alt="Create Station Screenshot" />
+        </div>
+      </div>
+    </div>
+
+    <!-- COMPLETION PHASE -->
+    <div class="phase">
+      <div class="phase-label">Completion Phase</div>
+
+      <!-- Screen 7: Station Detail -->
+      <div class="screen-item">
+        <div class="screen-label">7. Station Detail</div>
+        <div class="screen-description">Photos, streams, notes</div>
+        <div class="screen-preview">
+          <img src="https://placeholder.com/280x400?text=7.+Station+Detail" alt="Station Detail Screenshot" />
+        </div>
+        <div class="arrow">↓</div>
+      </div>
+
+      <!-- Screen 8: Pins on Plan -->
+      <div class="screen-item">
+        <div class="screen-label">8. Pins Placed</div>
+        <div class="screen-description">Visual confirmation</div>
+        <div class="screen-preview">
+          <img src="https://placeholder.com/280x400?text=8.+Pins+Placed" alt="Pins Placed Screenshot" />
+        </div>
+        <div class="arrow">↓</div>
+      </div>
+
+      <!-- Screen 9: Export -->
+      <div class="screen-item">
+        <div class="screen-label">9. Export Audit</div>
+        <div class="screen-description">Multiple export formats</div>
+        <div class="screen-preview">
+          <img src="https://placeholder.com/280x400?text=9.+Export" alt="Export Screenshot" />
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <p><strong>Typical Audit Duration:</strong> 45–90 minutes for 8-12 station facility</p>
+    <p><strong>Data Collected:</strong> Building info, waste streams, floor plans, station photos, waste stream inventory, bin configurations</p>
+    <p><strong>Deliverables:</strong> Excel spreadsheet, annotated floor plans, photos, audit report</p>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diagnostic Console - Site Visit Form</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', monospace;
+      padding: 20px;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1 { color: #4ec9b0; margin-bottom: 10px; }
+    .console {
+      background: #252526;
+      border: 1px solid #3e3e42;
+      border-radius: 4px;
+      padding: 16px;
+      font-size: 12px;
+      line-height: 1.6;
+      font-family: 'Courier New', monospace;
+      max-height: 600px;
+      overflow-y: auto;
+      margin-bottom: 20px;
+    }
+    .log { color: #d4d4d4; }
+    .info { color: #4fc1ff; }
+    .warn { color: #ce9178; }
+    .error { color: #f48771; }
+    .success { color: #4ec9b0; }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    button {
+      background: #0e639c;
+      color: #fff;
+      border: 1px solid #07519b;
+      padding: 10px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: inherit;
+    }
+    button:hover { background: #1177bb; }
+    button.error { background: #c42b1f; }
+    button.error:hover { background: #d83b2f; }
+    button.success { background: #107c10; }
+    button.success:hover { background: #149020; }
+    .test-section {
+      background: #252526;
+      border: 1px solid #3e3e42;
+      border-radius: 4px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .test-title {
+      color: #4fc1ff;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .test-result {
+      padding: 8px;
+      margin: 4px 0;
+      border-radius: 2px;
+      font-size: 12px;
+    }
+    .test-pass { background: #1a5c36; color: #4ec9b0; }
+    .test-fail { background: #5c1a1a; color: #f48771; }
+    .test-warn { background: #5c4a1a; color: #ce9178; }
+  </style>
+</head>
+<body>
+  <h1>🔍 Diagnostic Console</h1>
+  <p>Real-time diagnostics for Site Visit Form - Open in a new window/tab and reload your main app in another tab</p>
+
+  <div class="button-group">
+    <button onclick="clearLog()">Clear Log</button>
+    <button onclick="testButtonClickable()" class="success">Test Button Click</button>
+    <button onclick="testFormFields()" class="success">Test Form Fields</button>
+    <button onclick="testFileInputs()" class="success">Test File Inputs</button>
+    <button onclick="testValidationModal()" class="success">Test Validation Modal</button>
+    <button onclick="testAllFunctions()" class="success">Test All Functions</button>
+    <button onclick="window.location.reload()" class="error">Reload Page</button>
+  </div>
+
+  <div class="console" id="console-output"></div>
+
+  <div class="test-section">
+    <div class="test-title">📊 System Status</div>
+    <div id="system-status"></div>
+  </div>
+
+  <script>
+    const logs = [];
+
+    function log(type, message) {
+      const timestamp = new Date().toLocaleTimeString();
+      const entry = { type, message, timestamp };
+      logs.push(entry);
+
+      const colorClass = {
+        'log': 'log',
+        'info': 'info',
+        'warn': 'warn',
+        'error': 'error',
+        'success': 'success'
+      }[type] || 'log';
+
+      const consoleEl = document.getElementById('console-output');
+      const line = document.createElement('div');
+      line.className = colorClass;
+      line.textContent = `[${timestamp}] ${message}`;
+      consoleEl.appendChild(line);
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+
+      console.log(`[${type.toUpperCase()}]`, message);
+    }
+
+    function clearLog() {
+      logs.length = 0;
+      document.getElementById('console-output').innerHTML = '';
+      log('info', 'Console cleared');
+    }
+
+    function testButtonClickable() {
+      log('info', '=== Testing Button Clickability ===');
+
+      try {
+        const btn = document.getElementById('btn-start-visit');
+        if (!btn) {
+          log('error', '❌ Button not found: btn-start-visit');
+          return;
+        }
+        log('success', '✓ Button exists in DOM');
+
+        if (btn.onclick) {
+          log('success', '✓ Button has onclick handler');
+        } else {
+          log('warn', '⚠️ Button has no onclick attribute (may have event listeners)');
+        }
+
+        log('info', `Button text: "${btn.textContent}"`);
+        log('info', `Button class: "${btn.className}"`);
+        log('info', 'Button is clickable - try clicking in your main app');
+
+      } catch (e) {
+        log('error', `Exception: ${e.message}`);
+      }
+    }
+
+    function testFormFields() {
+      log('info', '=== Testing Form Fields ===');
+
+      const fields = [
+        { id: 'inp-building', type: 'required' },
+        { id: 'inp-date', type: 'required' },
+        { id: 'inp-auditor', type: 'required' },
+        { id: 'inp-address', type: 'optional' },
+        { id: 'inp-hauler', type: 'optional' },
+        { id: 'inp-contact-notes', type: 'optional' }
+      ];
+
+      fields.forEach(field => {
+        try {
+          const el = document.getElementById(field.id);
+          if (!el) {
+            log('error', `❌ Missing field: ${field.id} (${field.type})`);
+          } else {
+            const hasValue = el.value ? ` = "${el.value.substring(0, 20)}"` : ' (empty)';
+            log('success', `✓ ${field.id}${hasValue}`);
+          }
+        } catch (e) {
+          log('error', `Error checking ${field.id}: ${e.message}`);
+        }
+      });
+    }
+
+    function testFileInputs() {
+      log('info', '=== Testing File Inputs ===');
+
+      try {
+        const cameraInput = document.getElementById('context-photo-camera');
+        const fileInput = document.getElementById('context-photo-file');
+
+        if (!cameraInput) {
+          log('error', '❌ Camera input not found');
+        } else {
+          log('success', '✓ Camera input exists (id: context-photo-camera)');
+          log('info', `  - Type: ${cameraInput.type}`);
+          log('info', `  - Accept: ${cameraInput.getAttribute('accept')}`);
+          log('info', `  - Capture: ${cameraInput.getAttribute('capture')}`);
+        }
+
+        if (!fileInput) {
+          log('error', '❌ File input not found');
+        } else {
+          log('success', '✓ File input exists (id: context-photo-file)');
+          log('info', `  - Type: ${fileInput.type}`);
+          log('info', `  - Accept: ${fileInput.getAttribute('accept')}`);
+        }
+
+        if (typeof promptContextPhotoUpload === 'function') {
+          log('success', '✓ promptContextPhotoUpload() function defined');
+        } else {
+          log('error', '❌ promptContextPhotoUpload() function not found');
+        }
+
+        if (typeof promptContextPhotoFile === 'function') {
+          log('success', '✓ promptContextPhotoFile() function defined');
+        } else {
+          log('error', '❌ promptContextPhotoFile() function not found');
+        }
+
+      } catch (e) {
+        log('error', `Exception: ${e.message}`);
+      }
+    }
+
+    function testValidationModal() {
+      log('info', '=== Testing Validation Modal ===');
+
+      try {
+        const modal = document.getElementById('modal-validation');
+        if (!modal) {
+          log('error', '❌ Validation modal not found');
+          return;
+        }
+        log('success', '✓ Modal exists (id: modal-validation)');
+
+        const errorsList = document.getElementById('validation-errors-list');
+        if (!errorsList) {
+          log('error', '❌ Errors list element not found');
+        } else {
+          log('success', '✓ Errors list element exists (id: validation-errors-list)');
+        }
+
+        if (typeof openModal === 'function') {
+          log('success', '✓ openModal() function defined');
+        } else {
+          log('error', '❌ openModal() function not found');
+        }
+
+        if (typeof startVisit === 'function') {
+          log('success', '✓ startVisit() function defined');
+        } else {
+          log('error', '❌ startVisit() function not found');
+        }
+
+      } catch (e) {
+        log('error', `Exception: ${e.message}`);
+      }
+    }
+
+    function testAllFunctions() {
+      log('info', '=== Testing All Critical Functions ===');
+
+      const functions = [
+        'startVisit',
+        'goFloors',
+        'openModal',
+        'closeModal',
+        'promptContextPhotoUpload',
+        'promptContextPhotoFile',
+        'handleContextPhotoUpload',
+        'removeContextPhoto',
+        'renderContextPhotos',
+        'persist',
+        'showS'
+      ];
+
+      functions.forEach(fn => {
+        if (typeof window[fn] === 'function') {
+          log('success', `✓ ${fn}()`);
+        } else {
+          log('error', `❌ ${fn}() not found`);
+        }
+      });
+
+      log('info', 'Function test complete');
+    }
+
+    // Initialize status
+    function updateStatus() {
+      const status = document.getElementById('system-status');
+      const tests = [
+        ['Button exists', () => !!document.getElementById('btn-start-visit')],
+        ['Form fields exist', () => document.querySelectorAll('[id^="inp-"]').length >= 6],
+        ['File inputs exist', () => !!document.getElementById('context-photo-file') && !!document.getElementById('context-photo-camera')],
+        ['Validation modal exists', () => !!document.getElementById('modal-validation')],
+        ['startVisit() defined', () => typeof startVisit === 'function'],
+        ['openModal() defined', () => typeof openModal === 'function']
+      ];
+
+      let html = '';
+      tests.forEach(([name, test]) => {
+        const pass = test();
+        const className = pass ? 'test-pass' : 'test-fail';
+        const icon = pass ? '✓' : '✗';
+        html += `<div class="test-result ${className}">${icon} ${name}</div>`;
+      });
+
+      status.innerHTML = html;
+    }
+
+    // Log initial info
+    window.addEventListener('load', () => {
+      log('success', '🚀 Diagnostic console loaded');
+      log('info', 'Click buttons above to run diagnostic tests');
+      log('info', 'Check your main app console for errors too (F12 → Console)');
+      updateStatus();
+    });
+
+    // Capture console errors
+    const originalError = console.error;
+    console.error = function(...args) {
+      log('error', args.join(' '));
+      originalError.apply(console, args);
+    };
+
+    const originalWarn = console.warn;
+    console.warn = function(...args) {
+      log('warn', args.join(' '));
+      originalWarn.apply(console, args);
+    };
+
+  </script>
+</body>
+</html>

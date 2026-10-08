@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Code Hygiene Check - Site Visit Form</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 20px;
+      background: #f5f5f5;
+      color: #2a2a2a;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    h1 { color: #34A853; margin-bottom: 10px; }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .summary-card {
+      background: white;
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    .summary-number {
+      font-size: 28px;
+      font-weight: 700;
+      color: #34A853;
+    }
+    .summary-label {
+      font-size: 12px;
+      color: #757575;
+      margin-top: 4px;
+      text-transform: uppercase;
+    }
+    .section {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #2a2a2a;
+      border-bottom: 2px solid #34A853;
+      padding-bottom: 10px;
+      margin-bottom: 16px;
+    }
+    .item {
+      padding: 12px;
+      margin-bottom: 10px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .item.pass {
+      background: #e6f4eb;
+      border-left: 4px solid #34A853;
+      color: #1e8449;
+    }
+    .item.warning {
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      color: #92400e;
+    }
+    .item.error {
+      background: #fee;
+      border-left: 4px solid #ee4547;
+      color: #c33;
+    }
+    .item-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .item-detail {
+      font-size: 12px;
+      opacity: 0.8;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    thead tr {
+      background: #f5f5f5;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    th, td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    th {
+      font-weight: 600;
+    }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-pass { background: #d4edda; color: #155724; }
+    .badge-error { background: #f8d7da; color: #721c24; }
+    .badge-warning { background: #fff3cd; color: #856404; }
+  </style>
+</head>
+<body>
+  <h1>🔍 Code Hygiene Check Report</h1>
+  <p>Comprehensive analysis of Site Visit Form code structure and functionality</p>
+
+  <div class="summary">
+    <div class="summary-card">
+      <div class="summary-number" id="total-buttons">-</div>
+      <div class="summary-label">Total Buttons</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-number" id="total-fields">-</div>
+      <div class="summary-label">Form Fields</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-number" id="total-modals">-</div>
+      <div class="summary-label">Modals</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-number" id="total-screens">-</div>
+      <div class="summary-label">Screens</div>
+    </div>
+  </div>
+
+  <div id="report-container"></div>
+
+  <script>
+    const report = {
+      buttons: [],
+      fields: [],
+      modals: [],
+      screens: [],
+      functions: [],
+      errors: [],
+      warnings: []
+    };
+
+    // Fetch the main HTML file and analyze it
+    fetch('Spare-it_site_visit_form.html')
+      .then(res => res.text())
+      .then(html => {
+        analyzeCode(html);
+        renderReport();
+      })
+      .catch(err => {
+        document.getElementById('report-container').innerHTML = `
+          <div class="section">
+            <p style="color: #ee4547;"><strong>Error loading file:</strong> ${err.message}</p>
+            <p>Make sure Spare-it_site_visit_form.html is in the same directory as this file.</p>
+          </div>
+        `;
+      });
+
+    function analyzeCode(html) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+
+      // ── SCREENS ──
+      const screens = doc.querySelectorAll('[id^="s-"]');
+      report.screens = Array.from(screens).map(s => ({
+        id: s.id,
+        exists: true,
+        hasContent: s.innerHTML.trim().length > 0
+      }));
+
+      // ── BUTTONS ──
+      const buttons = doc.querySelectorAll('button');
+      buttons.forEach(btn => {
+        const handler = btn.onclick || btn.getAttribute('onclick') || 'Event listener attached';
+        const id = btn.id || '(no id)';
+        report.buttons.push({
+          id,
+          text: btn.textContent.trim().substring(0, 50),
+          handler: typeof handler === 'string' ? handler : 'Attached',
+          hasHandler: !!handler
+        });
+      });
+
+      // ── FORM FIELDS ──
+      const inputs = doc.querySelectorAll('input[id], textarea[id], select[id]');
+      inputs.forEach(inp => {
+        report.fields.push({
+          id: inp.id,
+          type: inp.tagName.toLowerCase(),
+          inputType: inp.getAttribute('type') || 'N/A',
+          required: inp.hasAttribute('required'),
+          hasLabel: !!doc.querySelector(`label[for="${inp.id}"]`)
+        });
+      });
+
+      // ── MODALS ──
+      const modals = doc.querySelectorAll('[id*="modal"]');
+      modals.forEach(modal => {
+        report.modals.push({
+          id: modal.id,
+          type: modal.className,
+          hasTriggers: Array.from(doc.querySelectorAll(`[onclick*="${modal.id}"]`)).length > 0,
+          triggerCount: Array.from(doc.querySelectorAll(`[onclick*="${modal.id}"]`)).length
+        });
+      });
+
+      // ── FUNCTION REFERENCES ──
+      const functionPattern = /onclick="([^"]+)"|addEventListener\([^,]+,\s*function|function\s+(\w+)\(/g;
+      const functionMatches = html.match(/function\s+(\w+)\s*\(/g) || [];
+      const definedFunctions = functionMatches.map(f => f.replace(/function\s+/, '').replace(/\s*\(/, ''));
+      report.functions = [...new Set(definedFunctions)];
+
+      // ── LANDING PAGE SPECIFIC CHECKS ──
+      const homeScreen = doc.getElementById('s-home');
+      if (homeScreen) {
+        const homeButtons = homeScreen.querySelectorAll('button');
+        const homeInputs = homeScreen.querySelectorAll('input[id], textarea[id], select[id]');
+
+        homeButtons.forEach(btn => {
+          if (!btn.onclick && !btn.getAttribute('onclick') && !btn.id) {
+            report.warnings.push(`Landing page button has no handler: "${btn.textContent.trim().substring(0, 40)}"`);
+          }
+        });
+
+        homeInputs.forEach(inp => {
+          if (!inp.id) {
+            report.errors.push(`Landing page input has no ID: ${inp.tagName}`);
+          }
+        });
+      }
+
+      // ── VALIDATION ──
+      // Check for onclick handlers that reference undefined functions
+      const onclickHandlers = html.match(/onclick="([^"]+)"/g) || [];
+      onclickHandlers.forEach(handler => {
+        const funcName = handler.match(/(\w+)\(/)?.[1];
+        if (funcName && !definedFunctions.includes(funcName) && funcName !== 'this') {
+          report.warnings.push(`Potential undefined function: ${funcName}()`);
+        }
+      });
+    }
+
+    function renderReport() {
+      let html = '';
+
+      // Summary stats
+      document.getElementById('total-buttons').textContent = report.buttons.length;
+      document.getElementById('total-fields').textContent = report.fields.length;
+      document.getElementById('total-modals').textContent = report.modals.length;
+      document.getElementById('total-screens').textContent = report.screens.length;
+
+      // ── SCREENS ──
+      html += `<div class="section">
+        <div class="section-title">📄 Screens (${report.screens.length})</div>
+        <table>
+          <thead><tr><th>Screen ID</th><th>Content</th><th>Status</th></tr></thead>
+          <tbody>`;
+      report.screens.forEach(s => {
+        const status = s.hasContent ? '<span class="badge badge-pass">✓ OK</span>' : '<span class="badge badge-error">✗ Empty</span>';
+        html += `<tr><td>${s.id}</td><td>${s.hasContent ? 'Has content' : 'Empty'}</td><td>${status}</td></tr>`;
+      });
+      html += `</tbody></table></div>`;
+
+      // ── LANDING PAGE BUTTONS ──
+      html += `<div class="section">
+        <div class="section-title">🏠 Landing Page (s-home) - Buttons & Fields</div>`;
+
+      const homeButtons = report.buttons.filter((_, i) => {
+        // This is a rough filter - in reality we'd need to know which buttons are on home
+        return i < 10; // First ~10 buttons are often on home
+      });
+
+      html += `<h3 style="margin-top: 16px; margin-bottom: 10px; color: #2a2a2a;">Buttons (Expected: 4)</h3>
+        <div>`;
+      const requiredHomeButtons = ['openStreamSelectHome', 'promptContextPhotoUpload', 'promptContextPhotoFile', 'startVisit'];
+      requiredHomeButtons.forEach(btnName => {
+        const hasButton = report.buttons.some(b => b.handler.includes(btnName));
+        const status = hasButton ? `<span class="badge badge-pass">✓</span>` : `<span class="badge badge-error">✗</span>`;
+        html += `<div class="item ${hasButton ? 'pass' : 'error'}">
+          <div class="item-title">${status} ${btnName}()</div>
+        </div>`;
+      });
+      html += `</div>`;
+
+      html += `<h3 style="margin-top: 16px; margin-bottom: 10px; color: #2a2a2a;">Form Fields (Expected: 6)</h3>
+        <div>`;
+      const requiredFields = ['inp-building', 'inp-date', 'inp-auditor', 'inp-address', 'inp-hauler', 'inp-contact-notes'];
+      requiredFields.forEach(fieldId => {
+        const hasField = report.fields.some(f => f.id === fieldId);
+        const status = hasField ? `<span class="badge badge-pass">✓</span>` : `<span class="badge badge-error">✗</span>`;
+        html += `<div class="item ${hasField ? 'pass' : 'error'}">
+          <div class="item-title">${status} ${fieldId}</div>
+        </div>`;
+      });
+      html += `</div></div>`;
+
+      // ── MODALS ──
+      html += `<div class="section">
+        <div class="section-title">🔲 Modals (${report.modals.length})</div>
+        <table>
+          <thead><tr><th>Modal ID</th><th>Triggers</th><th>Status</th></tr></thead>
+          <tbody>`;
+      report.modals.forEach(m => {
+        const status = m.hasTriggers ? `<span class="badge badge-pass">✓ ${m.triggerCount}</span>` : '<span class="badge badge-warning">⚠ No triggers</span>';
+        html += `<tr><td>${m.id}</td><td>${m.triggerCount} triggers</td><td>${status}</td></tr>`;
+      });
+      html += `</tbody></table></div>`;
+
+      // ── FUNCTIONS ──
+      html += `<div class="section">
+        <div class="section-title">⚙️ Defined Functions (${report.functions.length})</div>
+        <p style="font-size: 12px; color: #757575; margin-bottom: 12px;">Sample of defined functions:</p>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">`;
+      report.functions.slice(0, 15).forEach(fn => {
+        html += `<div class="item pass" style="background: #e6f4eb; padding: 8px;">
+          <code style="font-size: 12px;">${fn}()</code>
+        </div>`;
+      });
+      html += `</div></div>`;
+
+      // ── WARNINGS & ERRORS ──
+      if (report.warnings.length > 0) {
+        html += `<div class="section">
+          <div class="section-title">⚠️ Warnings (${report.warnings.length})</div>`;
+        report.warnings.forEach(w => {
+          html += `<div class="item warning"><div class="item-title">⚠️ ${w}</div></div>`;
+        });
+        html += `</div>`;
+      }
+
+      if (report.errors.length > 0) {
+        html += `<div class="section">
+          <div class="section-title">❌ Errors (${report.errors.length})</div>`;
+        report.errors.forEach(e => {
+          html += `<div class="item error"><div class="item-title">✗ ${e}</div></div>`;
+        });
+        html += `</div>`;
+      }
+
+      // ── SUMMARY ──
+      const issueCount = report.warnings.length + report.errors.length;
+      const statusColor = issueCount === 0 ? '#34A853' : issueCount < 3 ? '#f59e0b' : '#ee4547';
+      html += `<div class="section" style="border-top: 4px solid ${statusColor};">
+        <div class="section-title">📋 Hygiene Check Summary</div>
+        <div style="font-size: 14px; line-height: 1.8;">
+          <p><strong>Screens:</strong> ${report.screens.length} found, ${report.screens.filter(s => s.hasContent).length} with content</p>
+          <p><strong>Buttons:</strong> ${report.buttons.length} total buttons analyzed</p>
+          <p><strong>Form Fields:</strong> ${report.fields.length} input elements</p>
+          <p><strong>Modals:</strong> ${report.modals.length} modals, ${report.modals.filter(m => m.hasTriggers).length} with triggers</p>
+          <p><strong>Functions Defined:</strong> ${report.functions.length} functions</p>
+          <p style="margin-top: 16px;"><strong>Issues Found:</strong> ${report.errors.length} errors, ${report.warnings.length} warnings</p>
+          <p style="margin-top: 16px; padding: 12px; background: ${statusColor}20; border-radius: 6px; color: ${statusColor};">
+            ${issueCount === 0 ? '✅ Code looks clean!' : `⚠️ Review ${issueCount} issue(s) above`}
+          </p>
+        </div>
+      </div>`;
+
+      document.getElementById('report-container').innerHTML = html;
+    }
+  </script>
+</body>
+</html>

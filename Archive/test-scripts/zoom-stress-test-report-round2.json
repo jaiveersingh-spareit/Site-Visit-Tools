@@ -1,0 +1,60 @@
+{
+  "reportId": "zoom-stress-test-round2-1781132795254",
+  "timestamp": "2026-06-10T23:06:35.254Z",
+  "phase": "Round 2 - With Visible Floor Plan Screen",
+  "testEnvironment": {
+    "floorScreenVisible": true,
+    "floorImageLoaded": true,
+    "pinsContainerExists": true,
+    "containerDimensions": {
+      "width": 0,
+      "height": 0
+    }
+  },
+  "summary": {
+    "totalTests": 96,
+    "passedTests": 16,
+    "failedTests": 80,
+    "overallAccuracy": 16.67,
+    "targetAccuracy": 99.0,
+    "status": "CRITICAL - Container dimensions are 0"
+  },
+  "resultsByZoom": {
+    "100%": {
+      "accuracy": 16.67,
+      "passed": 4,
+      "failed": 20,
+      "total": 24
+    },
+    "125%": {
+      "accuracy": 16.67,
+      "passed": 4,
+      "failed": 20,
+      "total": 24
+    },
+    "150%": {
+      "accuracy": 16.67,
+      "passed": 4,
+      "failed": 20,
+      "total": 24
+    },
+    "175%": {
+      "accuracy": 16.67,
+      "passed": 4,
+      "failed": 20,
+      "total": 24
+    }
+  },
+  "keyFindings": {
+    "issue1": "Container dimensions are showing 0x0 - floor plan view not properly sized",
+    "issue2": "4 pins rendering per zoom (original 7 pins minus 3 gateways/displays)",
+    "issue3": "Most test pins created (labeled CENTER@100%, etc.) not found in DOM",
+    "rootCause": "Container not taking up space in layout despite being visible"
+  },
+  "nextSteps": [
+    "Fix floor plan container sizing (CSS layout issue)",
+    "Verify container dimensions are calculated correctly",
+    "Re-run tests once container is properly sized",
+    "Then validate coordinate accuracy formulas"
+  ]
+}

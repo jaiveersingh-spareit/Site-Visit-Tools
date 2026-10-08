@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Full System Diagnostic - Site Visit Form</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', monospace;
+      padding: 20px;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    h1 { color: #4ec9b0; margin-bottom: 20px; font-size: 24px; }
+    .section {
+      background: #252526;
+      border: 1px solid #3e3e42;
+      border-radius: 6px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .section h2 {
+      color: #4fc1ff;
+      margin-bottom: 15px;
+      font-size: 16px;
+      border-bottom: 2px solid #3e3e42;
+      padding-bottom: 8px;
+    }
+    .test-item {
+      padding: 12px;
+      margin-bottom: 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      border-left: 3px solid #3e3e42;
+    }
+    .pass { background: #1a5c36; color: #4ec9b0; border-left-color: #4ec9b0; }
+    .fail { background: #5c1a1a; color: #f48771; border-left-color: #f48771; }
+    .warn { background: #5c4a1a; color: #ce9178; border-left-color: #ce9178; }
+    .info { background: #1a3a5c; color: #4fc1ff; border-left-color: #4fc1ff; }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    button {
+      background: #0e639c;
+      color: #fff;
+      border: 1px solid #07519b;
+      padding: 10px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    button:hover { background: #1177bb; }
+    button.danger { background: #c42b1f; }
+    button.danger:hover { background: #d83b2f; }
+    button.success { background: #107c10; }
+    button.success:hover { background: #149020; }
+    .console {
+      background: #1a1a1a;
+      border: 1px solid #3e3e42;
+      border-radius: 4px;
+      padding: 12px;
+      font-size: 11px;
+      line-height: 1.5;
+      max-height: 400px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+    }
+    .code {
+      background: #1a1a1a;
+      border: 1px solid #3e3e42;
+      padding: 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      overflow-x: auto;
+      margin: 10px 0;
+    }
+    .summary {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .summary-card {
+      background: #1a1a1a;
+      border: 1px solid #3e3e42;
+      border-radius: 4px;
+      padding: 12px;
+      text-align: center;
+    }
+    .summary-card .num {
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    .summary-card .label {
+      font-size: 11px;
+      color: #757575;
+      text-transform: uppercase;
+    }
+    .load-frame {
+      display: none;
+      width: 100%;
+      height: 500px;
+      border: 1px solid #3e3e42;
+      border-radius: 4px;
+      margin-top: 10px;
+    }
+    .col2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 1000px) { .col2 { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <h1>🔬 Full System Diagnostic - Site Visit Form</h1>
+  <p style="color: #757575; margin-bottom: 20px;">Complete analysis of all critical systems and functions</p>
+
+  <div class="button-group">
+    <button onclick="runAllDiagnostics()" class="success">▶ Run All Diagnostics</button>
+    <button onclick="testDOMElements()" class="success">Test DOM</button>
+    <button onclick="testEventListeners()" class="success">Test Listeners</button>
+    <button onclick="testFunctions()" class="success">Test Functions</button>
+    <button onclick="testValidation()" class="success">Test Validation</button>
+    <button onclick="loadFormInFrame()" style="background:#555;">Load Form in Frame</button>
+    <button onclick="clearConsole()" class="danger">Clear</button>
+  </div>
+
+  <div id="summary" class="summary"></div>
+
+  <div class="col2">
+    <div class="section">
+      <h2>📋 DOM Elements Check</h2>
+      <div id="dom-results"></div>
+    </div>
+
+    <div class="section">
+      <h2>📌 Event Listeners Check</h2>
+      <div id="listener-results"></div>
+    </div>
+  </div>
+
+  <div class="col2">
+    <div class="section">
+      <h2>⚙️ Functions Check</h2>
+      <div id="functions-results"></div>
+    </div>
+
+    <div class="section">
+      <h2>✅ Validation Logic</h2>
+      <div id="validation-results"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>🔍 Live Console Output</h2>
+    <div class="console" id="console-output"></div>
+  </div>
+
+  <div class="section">
+    <h2>📌 Click Test (Interactive)</h2>
+    <p style="font-size: 12px; color: #757575; margin-bottom: 12px;">After loading the form in the frame below, try clicking buttons and interacting with the form. Watch the console output above.</p>
+    <button onclick="this.parentElement.querySelector('.load-frame').style.display = this.parentElement.querySelector('.load-frame').style.display === 'none' ? 'block' : 'none'">Toggle Form Frame</button>
+    <iframe class="load-frame" id="form-frame"></iframe>
+  </div>
+
+  <script>
+    let results = { pass: 0, fail: 0, warn: 0, info: 0 };
+    const logs = [];
+
+    function log(type, message) {
+      const timestamp = new Date().toLocaleTimeString();
+      const entry = { type, message, timestamp };
+      logs.push(entry);
+
+      const colors = { log: '#d4d4d4', info: '#4fc1ff', warn: '#ce9178', error: '#f48771', success: '#4ec9b0' };
+      const line = document.createElement('div');
+      line.style.color = colors[type] || '#d4d4d4';
+      line.textContent = `[${timestamp}] ${message}`;
+      document.getElementById('console-output').appendChild(line);
+      document.getElementById('console-output').scrollTop = document.getElementById('console-output').scrollHeight;
+
+      console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+
+    function logResult(type, message, details = '') {
+      results[type]++;
+      const className = type === 'pass' ? 'pass' : type === 'fail' ? 'fail' : type === 'warn' ? 'warn' : 'info';
+      const icon = { pass: '✓', fail: '✗', warn: '⚠️', info: 'ℹ️' }[type];
+      const html = `<div class="test-item ${className}"><strong>${icon} ${message}</strong>${details ? `<br><span style="opacity:0.7;">${details}</span>` : ''}</div>`;
+      return html;
+    }
+
+    function testDOMElements() {
+      results = { pass: 0, fail: 0, warn: 0, info: 0 };
+      log('info', '=== TESTING DOM ELEMENTS ===');
+
+      let html = '';
+      const elements = [
+        { id: 'btn-start-visit', name: 'Begin Site Visit Button', critical: true },
+        { id: 's-home', name: 'Landing Page Screen', critical: true },
+        { id: 'inp-building', name: 'Building Name Input', critical: true },
+        { id: 'inp-date', name: 'Visit Date Input', critical: true },
+        { id: 'inp-auditor', name: 'Auditor Name Input', critical: true },
+        { id: 'context-photo-camera', name: 'Camera File Input', critical: false },
+        { id: 'context-photo-file', name: 'File Picker Input', critical: false },
+        { id: 'modal-validation', name: 'Validation Modal', critical: true },
+        { id: 'validation-errors-list', name: 'Validation Errors Container', critical: true },
+        { id: 'modal-stream-select', name: 'Stream Selection Modal', critical: true },
+        { id: 'context-photos-list', name: 'Context Photos Container', critical: false }
+      ];
+
+      elements.forEach(el => {
+        const element = document.getElementById(el.id);
+        if (!element) {
+          html += logResult('fail', `MISSING: ${el.name}`, el.id);
+          log('error', `Element not found: ${el.id}`);
+        } else {
+          const visible = element.offsetParent !== null;
+          const display = window.getComputedStyle(element).display;
+          html += logResult('pass', `FOUND: ${el.name}`, `${el.id} (display: ${display})`);
+          log('success', `Element found: ${el.id} (visible: ${visible})`);
+        }
+      });
+
+      document.getElementById('dom-results').innerHTML = html;
+      updateSummary();
+    }
+
+    function testEventListeners() {
+      results = { pass: 0, fail: 0, warn: 0, info: 0 };
+      log('info', '=== TESTING EVENT LISTENERS ===');
+
+      let html = '';
+      const btn = document.getElementById('btn-start-visit');
+
+      if (!btn) {
+        html += logResult('fail', 'Button not found, cannot test listeners');
+        log('error', 'Cannot test listeners: button not found');
+      } else {
+        html += logResult('info', 'Button element exists');
+
+        // Check for onclick attribute
+        const hasOnclick = btn.getAttribute('onclick');
+        if (hasOnclick) {
+          html += logResult('info', 'Has onclick attribute', hasOnclick);
+        } else {
+          html += logResult('info', 'No onclick attribute (uses addEventListener)');
+        }
+
+        // Try to add a test listener
+        let listenerFired = false;
+        const testListener = () => { listenerFired = true; };
+        btn.addEventListener('click', testListener);
+
+        // Manually trigger a click event
+        btn.click();
+
+        if (listenerFired) {
+          html += logResult('pass', 'Click event listeners working', 'Manual click triggered listener');
+          log('success', 'Event listener test passed');
+        } else {
+          html += logResult('warn', 'Click event listeners attached but may not work as expected', 'Manual click did not trigger');
+          log('warn', 'Click listener test inconclusive');
+        }
+
+        // Check if startVisit is a function
+        if (typeof startVisit === 'function') {
+          html += logResult('pass', 'startVisit() function defined', 'Function is callable');
+          log('success', 'startVisit function found');
+        } else {
+          html += logResult('fail', 'startVisit() function NOT defined', 'This is required for the button to work');
+          log('error', 'startVisit function not found');
+        }
+
+        // Remove test listener
+        btn.removeEventListener('click', testListener);
+      }
+
+      document.getElementById('listener-results').innerHTML = html;
+      updateSummary();
+    }
+
+    function testFunctions() {
+      results = { pass: 0, fail: 0, warn: 0, info: 0 };
+      log('info', '=== TESTING CRITICAL FUNCTIONS ===');
+
+      let html = '';
+      const functions = [
+        { name: 'startVisit', critical: true },
+        { name: 'openModal', critical: true },
+        { name: 'closeModal', critical: true },
+        { name: 'goFloors', critical: true },
+        { name: 'promptContextPhotoUpload', critical: false },
+        { name: 'promptContextPhotoFile', critical: false },
+        { name: 'handleContextPhotoUpload', critical: false },
+        { name: 'renderContextPhotos', critical: false },
+        { name: 'showS', critical: true },
+        { name: 'persist', critical: true }
+      ];
+
+      functions.forEach(fn => {
+        if (typeof window[fn.name] === 'function') {
+          html += logResult('pass', `${fn.name}() defined`, 'Function is callable');
+          log('success', `Function found: ${fn.name}`);
+        } else {
+          const severity = fn.critical ? 'fail' : 'warn';
+          html += logResult(severity, `${fn.name}() NOT defined`, fn.critical ? 'CRITICAL FUNCTION MISSING' : 'Optional function missing');
+          log('error', `Function not found: ${fn.name}`);
+        }
+      });
+
+      document.getElementById('functions-results').innerHTML = html;
+      updateSummary();
+    }
+
+    function testValidation() {
+      results = { pass: 0, fail: 0, warn: 0, info: 0 };
+      log('info', '=== TESTING VALIDATION LOGIC ===');
+
+      let html = '';
+
+      // Test 1: Can we open the validation modal?
+      if (typeof openModal === 'function') {
+        html += logResult('info', 'openModal() exists, testing...');
+        try {
+          openModal('modal-validation');
+          html += logResult('pass', 'Modal opened successfully', 'modal-validation');
+          log('success', 'openModal test passed');
+        } catch (e) {
+          html += logResult('fail', 'Error opening modal', e.message);
+          log('error', `Error opening modal: ${e.message}`);
+        }
+      } else {
+        html += logResult('fail', 'openModal() not defined', 'Cannot test validation modal');
+      }
+
+      // Test 2: Can we close the modal?
+      if (typeof closeModal === 'function') {
+        try {
+          closeModal('modal-validation');
+          html += logResult('pass', 'Modal closed successfully', 'modal-validation');
+          log('success', 'closeModal test passed');
+        } catch (e) {
+          html += logResult('warn', 'Error closing modal', e.message);
+          log('warn', `Error closing modal: ${e.message}`);
+        }
+      }
+
+      // Test 3: Simulate validation failure
+      if (typeof startVisit === 'function') {
+        html += logResult('info', 'Testing startVisit() with empty form...');
+
+        // Clear form fields
+        const fields = ['inp-building', 'inp-date', 'inp-auditor'];
+        fields.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = '';
+        });
+
+        log('info', 'Form fields cleared');
+
+        // Call startVisit
+        try {
+          startVisit();
+          html += logResult('pass', 'startVisit() executed without error', 'Function ran successfully');
+          log('success', 'startVisit() executed');
+
+          // Check if validation modal is open
+          const modal = document.getElementById('modal-validation');
+          if (modal && modal.classList.contains('open')) {
+            html += logResult('pass', 'Validation modal displayed', 'Modal has .open class');
+            log('success', 'Validation modal is open');
+          } else {
+            html += logResult('fail', 'Validation modal NOT displayed', 'Modal does not have .open class');
+            log('error', 'Validation modal not opened');
+          }
+        } catch (e) {
+          html += logResult('fail', 'Error calling startVisit()', e.message);
+          log('error', `Error in startVisit: ${e.message}`);
+        }
+      }
+
+      document.getElementById('validation-results').innerHTML = html;
+      updateSummary();
+    }
+
+    function runAllDiagnostics() {
+      document.getElementById('console-output').innerHTML = '';
+      log('info', '╔═══════════════════════════════════════╗');
+      log('info', '║  FULL SYSTEM DIAGNOSTIC START         ║');
+      log('info', '╚═══════════════════════════════════════╝');
+
+      testDOMElements();
+      log('info', '');
+      testEventListeners();
+      log('info', '');
+      testFunctions();
+      log('info', '');
+      testValidation();
+
+      log('info', '╔═══════════════════════════════════════╗');
+      log('info', '║  DIAGNOSTIC COMPLETE                  ║');
+      log('info', '╚═══════════════════════════════════════╝');
+    }
+
+    function updateSummary() {
+      const total = results.pass + results.fail + results.warn + results.info;
+      document.getElementById('summary').innerHTML = `
+        <div class="summary-card"><div class="num" style="color:#4ec9b0;">${results.pass}</div><div class="label">Passed</div></div>
+        <div class="summary-card"><div class="num" style="color:#f48771;">${results.fail}</div><div class="label">Failed</div></div>
+        <div class="summary-card"><div class="num" style="color:#ce9178;">${results.warn}</div><div class="label">Warnings</div></div>
+      `;
+    }
+
+    function clearConsole() {
+      logs.length = 0;
+      document.getElementById('console-output').innerHTML = '';
+      log('info', 'Console cleared');
+    }
+
+    function loadFormInFrame() {
+      const iframe = document.getElementById('form-frame');
+      iframe.src = 'Spare-it_site_visit_form.html';
+      iframe.style.display = 'block';
+      log('info', 'Form loaded in iframe');
+    }
+
+    // Initial load
+    window.addEventListener('load', () => {
+      log('success', '🚀 Diagnostic console ready');
+      log('info', 'Click buttons above to run tests');
+    });
+  </script>
+</body>
+</html>

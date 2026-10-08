@@ -1,0 +1,91 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Apps Script POC — round-trip test</title></head>
+<body style="font-family:sans-serif;max-width:640px;margin:40px auto;">
+  <h2>Site Visit Tool — Apps Script POC test</h2>
+  <p>Fill in your deployed Web App URL and token, then run each step. This is a standalone
+  harness — it does not touch the production tool. Once this round-trips cleanly, the same
+  two calls (<code>loadProject</code> / <code>syncFloor</code>) get wired into a branch of
+  the real HTML.</p>
+
+  <label>Web App URL: <input id="url" size="60" placeholder="https://script.google.com/macros/s/AKfycb.../exec"></label><br><br>
+  <label>Token: <input id="token" size="30"></label><br><br>
+  <label>Floor ID (any string for the POC): <input id="floorId" value="floor-poc-1"></label><br><br>
+
+  <h3>1) syncFloor — write two test stations + one photo</h3>
+  <input type="file" id="photoFile" accept="image/*"><br><br>
+  <button onclick="doSync()">Sync Floor</button>
+  <pre id="syncOut"></pre>
+
+  <h3>2) loadProject — read the floor back</h3>
+  <button onclick="doLoad()">Load Project</button>
+  <pre id="loadOut"></pre>
+
+  <script>
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result.split(',')[1]);
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+    }
+
+    async function doSync() {
+      const out = document.getElementById('syncOut');
+      out.textContent = 'syncing...';
+      const url = document.getElementById('url').value;
+      const token = document.getElementById('token').value;
+      const floorId = document.getElementById('floorId').value;
+      const fileInput = document.getElementById('photoFile');
+
+      const body = {
+        token, floorId,
+        stations: [
+          { stationId: 'st-A', letter: 'A', stream: 'Trash', scale: 'Large', binCode: 'A-T-l', x: 25, y: 70, notes: 'POC test station A' },
+          { stationId: 'st-B', letter: 'B', stream: 'Recycling', scale: 'Medium', binCode: 'B-R-m', x: 60, y: 40, notes: 'POC test station B' },
+        ],
+      };
+
+      if (fileInput.files[0]) {
+        const base64 = await fileToBase64(fileInput.files[0]);
+        body.photo = {
+          stationId: 'st-A', photoType: 'station',
+          base64, mimeType: fileInput.files[0].type || 'image/jpeg',
+          buildingName: 'POC-Building', floorIndex: 1,
+        };
+        // driveFolderId intentionally omitted here — paste the "Photos" subfolder
+        // ID from your test project into body.driveFolderId to file it there
+        // instead of Drive root.
+      }
+
+      try {
+        // Apps Script Web Apps need text/plain to dodge CORS preflight (per doc)
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(body),
+        });
+        out.textContent = await res.text();
+      } catch (err) {
+        out.textContent = 'ERROR: ' + err;
+      }
+    }
+
+    async function doLoad() {
+      const out = document.getElementById('loadOut');
+      out.textContent = 'loading...';
+      const url = document.getElementById('url').value;
+      const token = document.getElementById('token').value;
+      const floorId = document.getElementById('floorId').value;
+
+      try {
+        const res = await fetch(`${url}?token=${encodeURIComponent(token)}&floorId=${encodeURIComponent(floorId)}`);
+        out.textContent = await res.text();
+      } catch (err) {
+        out.textContent = 'ERROR: ' + err;
+      }
+    }
+  </script>
+</body>
+</html>

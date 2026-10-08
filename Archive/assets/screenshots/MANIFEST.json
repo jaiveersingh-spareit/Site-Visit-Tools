@@ -1,0 +1,71 @@
+{
+  "captured": "2026-06-04T02:45:14.212931",
+  "target": 85,
+  "total": 11,
+  "by_section": {
+    "screens": 7,
+    "modals": 4,
+    "workflows": 0,
+    "features": 0,
+    "errors": 0,
+    "comparisons": 0
+  },
+  "screenshots": [
+    {
+      "file": "S1_empty-state.png",
+      "section": "screens",
+      "desc": "Empty form"
+    },
+    {
+      "file": "S1_building-filled.png",
+      "section": "screens",
+      "desc": "Building name entered"
+    },
+    {
+      "file": "S1_address-filled.png",
+      "section": "screens",
+      "desc": "Address entered"
+    },
+    {
+      "file": "S1_hauler-filled.png",
+      "section": "screens",
+      "desc": "Hauler entered"
+    },
+    {
+      "file": "S1_date-filled.png",
+      "section": "screens",
+      "desc": "Date entered"
+    },
+    {
+      "file": "S1_form-complete.png",
+      "section": "screens",
+      "desc": "All fields complete"
+    },
+    {
+      "file": "S1_streams-modal.png",
+      "section": "modals",
+      "desc": "Waste streams selector"
+    },
+    {
+      "file": "S1_stream-selected.png",
+      "section": "modals",
+      "desc": "Stream selected"
+    },
+    {
+      "file": "S2_empty-floors.png",
+      "section": "screens",
+      "desc": "No floors created"
+    },
+    {
+      "file": "S2_add-floor-modal.png",
+      "section": "modals",
+      "desc": "Add floor modal"
+    },
+    {
+      "file": "S2_modal-filled.png",
+      "section": "modals",
+      "desc": "Floor number entered"
+    }
+  ],
+  "failures": []
+}

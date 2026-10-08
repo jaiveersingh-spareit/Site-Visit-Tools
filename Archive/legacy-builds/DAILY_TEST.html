@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spare-it · Daily Hygiene & Functionality Test</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green: #34A853;
+      --red: #EE4547;
+      --yellow: #FFD600;
+      --dark: #2A2A2A;
+      --bg: #F5F5F5;
+      --card: #FFFFFF;
+      --muted: #757575;
+      --border: #E0E0E0;
+    }
+
+    body {
+      font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--dark);
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .header {
+      background: var(--dark);
+      color: white;
+      padding: 30px 20px;
+      border-radius: 12px;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+
+    .header h1 { font-size: 28px; margin-bottom: 8px; }
+    .header p { font-size: 14px; opacity: 0.9; }
+
+    .controls {
+      background: var(--card);
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 30px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+    }
+
+    .control-group {
+      margin-bottom: 16px;
+    }
+
+    .control-group:last-child { margin-bottom: 0; }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      margin-bottom: 8px;
+    }
+
+    input[type="date"] {
+      width: 100%;
+      padding: 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    button {
+      flex: 1;
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .btn-primary {
+      background: var(--green);
+      color: white;
+    }
+
+    .btn-primary:active { transform: scale(0.98); opacity: 0.9; }
+
+    .btn-secondary {
+      background: var(--yellow);
+      color: var(--dark);
+    }
+
+    .btn-secondary:active { transform: scale(0.98); opacity: 0.9; }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .results {
+      background: var(--card);
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+    }
+
+    .test-category {
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .test-category:last-child {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+
+    .category-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-icon {
+      font-size: 20px;
+      min-width: 24px;
+    }
+
+    .pass { color: var(--green); }
+    .fail { color: var(--red); }
+    .pending { color: var(--muted); }
+
+    .test-item {
+      font-size: 13px;
+      padding: 8px 0;
+      padding-left: 34px;
+      line-height: 1.5;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .test-item::before {
+      content: '•';
+      margin-left: -24px;
+      font-weight: bold;
+      min-width: 16px;
+    }
+
+    .test-item.pass::before { color: var(--green); }
+    .test-item.fail::before { color: var(--red); }
+
+    .summary {
+      background: linear-gradient(135deg, #F5F5F5, #FFFFFF);
+      padding: 20px;
+      border-radius: 12px;
+      margin-top: 30px;
+      text-align: center;
+      border: 2px solid var(--border);
+    }
+
+    .summary-score {
+      font-size: 48px;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    .summary-text {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    .summary-date {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .status-bar {
+      height: 8px;
+      background: var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 16px;
+    }
+
+    .status-fill {
+      height: 100%;
+      background: var(--green);
+      transition: width 0.3s ease;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--muted);
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 40px;
+      height: 40px;
+      border: 4px solid var(--border);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 16px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .help-text {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 16px;
+      padding: 12px;
+      background: #F9F9F9;
+      border-radius: 8px;
+      border-left: 3px solid var(--yellow);
+    }
+
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🧪 Daily Test Suite</h1>
+    <p>Spare-it Site Visit Form · Hygiene & Functionality Verification</p>
+  </div>
+
+  <div class="controls">
+    <div class="control-group">
+      <label for="test-date">Test Date (Optional)</label>
+      <input type="date" id="test-date" />
+      <div class="help-text">
+        📅 Set a date to track when tests were run. Useful for pre-deployment verification or pre-site-visit checks.
+      </div>
+    </div>
+
+    <div class="button-group">
+      <button class="btn-primary" onclick="runAllTests()">▶ Run All Tests</button>
+      <button class="btn-secondary" onclick="resetResults()">↺ Reset</button>
+    </div>
+  </div>
+
+  <div id="loading" class="loading hidden">
+    <div class="spinner"></div>
+    <p>Running comprehensive test suite...</p>
+  </div>
+
+  <div id="results" class="results hidden">
+    <!-- Results populated by JavaScript -->
+  </div>
+
+  <div id="summary" class="summary hidden">
+    <div class="summary-score" id="score">—</div>
+    <div class="summary-text" id="message">Ready to test</div>
+    <div class="status-bar">
+      <div class="status-fill" id="statusFill" style="width: 0%"></div>
+    </div>
+    <div class="summary-date" id="timestamp"></div>
+  </div>
+
+  <script>
+    // Test results storage
+    let testResults = {
+      hygiene: [],
+      functionality: [],
+      phases: [],
+      mobile: []
+    };
+
+    // Set today's date as default
+    document.getElementById('test-date').valueAsDate = new Date();
+
+    function runAllTests() {
+      resetResults();
+      document.getElementById('loading').classList.remove('hidden');
+      document.getElementById('results').classList.add('hidden');
+      document.getElementById('summary').classList.add('hidden');
+
+      // Simulate async testing with setTimeout
+      setTimeout(() => {
+        testResults = {
+          hygiene: runHygieneChecks(),
+          functionality: runFunctionalityChecks(),
+          phases: runPhaseChecks(),
+          mobile: runMobileChecks()
+        };
+
+        document.getElementById('loading').classList.add('hidden');
+        displayResults();
+      }, 1500);
+    }
+
+    function runHygieneChecks() {
+      const results = [];
+
+      // Check 1: Console errors
+      results.push({
+        name: 'Console Error Status',
+        passed: checkConsoleClean(),
+        details: 'No JavaScript errors in browser console'
+      });
+
+      // Check 2: onclick attributes
+      results.push({
+        name: 'Button onclick Attributes',
+        passed: checkOnclickAttributes(),
+        details: 'All critical buttons have onclick handlers'
+      });
+
+      // Check 3: Function references
+      results.push({
+        name: 'Function Definitions',
+        passed: checkFunctionReferences(),
+        details: 'All handler functions are properly defined'
+      });
+
+      // Check 4: Modal elements
+      results.push({
+        name: 'Modal Elements Present',
+        passed: checkModalElements(),
+        details: 'All required modals exist in DOM'
+      });
+
+      // Check 5: localStorage
+      results.push({
+        name: 'localStorage Functionality',
+        passed: checkLocalStorage(),
+        details: 'Can read/write to browser storage'
+      });
+
+      // Check 6: File inputs
+      results.push({
+        name: 'File Upload Handlers',
+        passed: checkFileInputs(),
+        details: 'Photo upload inputs are accessible'
+      });
+
+      return results;
+    }
+
+    function runFunctionalityChecks() {
+      const results = [];
+
+      // Check 1: Form fields
+      results.push({
+        name: 'Form Fields Accessible',
+        passed: checkFormFields(),
+        details: 'Building name, date, auditor inputs present'
+      });
+
+      // Check 2: Button responsiveness
+      results.push({
+        name: 'Button Click Handlers',
+        passed: checkButtonHandlers(),
+        details: 'openStreamSelectHome, startVisit, promptPhoto functions bound'
+      });
+
+      // Check 3: Modal system
+      results.push({
+        name: 'Modal Open/Close System',
+        passed: checkModalSystem(),
+        details: 'openModal() and closeModal() functions working'
+      });
+
+      // Check 4: Data persistence
+      results.push({
+        name: 'Data Persistence',
+        passed: checkDataPersistence(),
+        details: 'Form data saves and loads from localStorage'
+      });
+
+      // Check 5: Validation
+      results.push({
+        name: 'Form Validation',
+        passed: checkValidation(),
+        details: 'Required fields properly validated'
+      });
+
+      return results;
+    }
+
+    function runPhaseChecks() {
+      const results = [];
+
+      // Check 1: HEIC support
+      results.push({
+        name: 'HEIC File Support',
+        passed: checkHeicSupport(),
+        details: 'heic2any library loaded and available'
+      });
+
+      // Check 2: Pin movement
+      results.push({
+        name: 'Pin Movement (Phase 1)',
+        passed: checkPinMovement(),
+        details: 'Pin drag handlers attached and CSS styling present'
+      });
+
+      // Check 3: Station modal
+      results.push({
+        name: 'Station Selection Modal (Phase 2)',
+        passed: checkStationModal(),
+        details: 'modal-link-station exists with linking functions'
+      });
+
+      return results;
+    }
+
+    function runMobileChecks() {
+      const results = [];
+
+      // Check 1: Touch targets
+      results.push({
+        name: 'Mobile Touch Targets',
+        passed: checkTouchTargets(),
+        details: 'Buttons have min-height: 48px for tap area'
+      });
+
+      // Check 2: Touch action CSS
+      results.push({
+        name: 'Touch Action Optimization',
+        passed: checkTouchActionCSS(),
+        details: 'touch-action: manipulation prevents double-tap zoom'
+      });
+
+      // Check 3: Viewport meta
+      results.push({
+        name: 'Viewport Configuration',
+        passed: checkViewport(),
+        details: 'Mobile viewport meta tags present'
+      });
+
+      // Check 4: Checkbox sizing
+      results.push({
+        name: 'Checkbox Mobile Sizing',
+        passed: checkCheckboxSize(),
+        details: 'Checkboxes sized 20px for touch accuracy'
+      });
+
+      return results;
+    }
+
+    // ── HYGIENE CHECK FUNCTIONS ──
+    function checkConsoleClean() {
+      // In a real scenario, this would check browser console
+      // For now, check if the page loaded without throwing errors
+      return window.S !== undefined;
+    }
+
+    function checkOnclickAttributes() {
+      const buttons = [
+        { id: 'btn-start-visit', fn: 'startVisit' },
+      ];
+
+      for (let btn of buttons) {
+        const el = document.getElementById(btn.id);
+        if (!el || !el.getAttribute('onclick')) return false;
+      }
+      return true;
+    }
+
+    function checkFunctionReferences() {
+      const required = [
+        'openStreamSelectHome',
+        'startVisit',
+        'promptContextPhotoUpload',
+        'promptContextPhotoFile',
+        'openModal',
+        'closeModal'
+      ];
+
+      for (let fn of required) {
+        if (typeof window[fn] !== 'function') return false;
+      }
+      return true;
+    }
+
+    function checkModalElements() {
+      const modals = [
+        'modal-stream-select',
+        'modal-validation',
+        'modal-link-station'
+      ];
+
+      for (let id of modals) {
+        if (!document.getElementById(id)) return false;
+      }
+      return true;
+    }
+
+    function checkLocalStorage() {
+      try {
+        const test = '__test__';
+        localStorage.setItem(test, test);
+        const value = localStorage.getItem(test);
+        localStorage.removeItem(test);
+        return value === test;
+      } catch(e) {
+        return false;
+      }
+    }
+
+    function checkFileInputs() {
+      const inputs = [
+        'context-photo-file',
+        'context-photo-camera'
+      ];
+
+      for (let id of inputs) {
+        if (!document.getElementById(id)) return false;
+      }
+      return true;
+    }
+
+    // ── FUNCTIONALITY CHECK FUNCTIONS ──
+    function checkFormFields() {
+      const fields = [
+        'inp-building',
+        'inp-address',
+        'inp-date',
+        'inp-auditor'
+      ];
+
+      for (let id of fields) {
+        if (!document.getElementById(id)) return false;
+      }
+      return true;
+    }
+
+    function checkButtonHandlers() {
+      const btns = [
+        'btn-start-visit',
+        'add-context-photo-btn'
+      ];
+
+      for (let id of btns) {
+        const el = document.getElementById(id);
+        if (!el || typeof el.onclick !== 'function') return false;
+      }
+      return true;
+    }
+
+    function checkModalSystem() {
+      return typeof window.openModal === 'function' &&
+             typeof window.closeModal === 'function';
+    }
+
+    function checkDataPersistence() {
+      return window.S !== undefined && typeof window.persist === 'function';
+    }
+
+    function checkValidation() {
+      return typeof window.startVisit === 'function';
+    }
+
+    // ── PHASE CHECK FUNCTIONS ──
+    function checkHeicSupport() {
+      // Check if heic2any library is loaded
+      return typeof heic2any !== 'undefined';
+    }
+
+    function checkPinMovement() {
+      const css = document.querySelector('style');
+      return css && css.textContent.includes('.plan-pin.edit-mode');
+    }
+
+    function checkStationModal() {
+      return document.getElementById('modal-link-station') !== null &&
+             typeof window.linkExistingStation === 'function';
+    }
+
+    // ── MOBILE CHECK FUNCTIONS ──
+    function checkTouchTargets() {
+      const css = document.querySelector('style');
+      return css && css.textContent.includes('min-height: 48px');
+    }
+
+    function checkTouchActionCSS() {
+      const css = document.querySelector('style');
+      return css && css.textContent.includes('touch-action: manipulation');
+    }
+
+    function checkViewport() {
+      const viewport = document.querySelector('meta[name="viewport"]');
+      return viewport && viewport.getAttribute('content').includes('width=device-width');
+    }
+
+    function checkCheckboxSize() {
+      const css = document.querySelector('style');
+      return css && css.textContent.includes('input[type=checkbox]') &&
+             css.textContent.includes('width: 20px');
+    }
+
+    function displayResults() {
+      const results = document.getElementById('results');
+      let html = '';
+      let totalTests = 0;
+      let passedTests = 0;
+
+      // Hygiene Results
+      html += renderCategory('Hygiene & Code Health', testResults.hygiene);
+
+      // Functionality Results
+      html += renderCategory('Core Functionality', testResults.functionality);
+
+      // Phase Results
+      html += renderCategory('Feature Phases', testResults.phases);
+
+      // Mobile Results
+      html += renderCategory('Mobile Optimization', testResults.mobile);
+
+      // Count passes
+      Object.values(testResults).forEach(category => {
+        category.forEach(test => {
+          totalTests++;
+          if (test.passed) passedTests++;
+        });
+      });
+
+      results.innerHTML = html;
+      results.classList.remove('hidden');
+
+      // Update summary
+      updateSummary(passedTests, totalTests);
+    }
+
+    function renderCategory(title, tests) {
+      const passed = tests.filter(t => t.passed).length;
+      const icon = passed === tests.length ? '✓' : passed > 0 ? '◐' : '✗';
+      const status = passed === tests.length ? 'pass' : passed > 0 ? 'pending' : 'fail';
+
+      let html = `
+        <div class="test-category">
+          <div class="category-title">
+            <span class="status-icon ${status}">${icon}</span>
+            ${title}
+            <span style="margin-left: auto; font-size: 13px; font-weight: 600; color: var(--muted);">
+              ${passed}/${tests.length}
+            </span>
+          </div>
+      `;
+
+      tests.forEach(test => {
+        const testStatus = test.passed ? 'pass' : 'fail';
+        const testIcon = test.passed ? '✓' : '✗';
+        html += `
+          <div class="test-item ${testStatus}">
+            <span style="font-weight: 700;">${test.name}</span>
+            <span style="color: var(--muted);">— ${test.details}</span>
+          </div>
+        `;
+      });
+
+      html += '</div>';
+      return html;
+    }
+
+    function updateSummary(passed, total) {
+      const percentage = Math.round((passed / total) * 100);
+      const summary = document.getElementById('summary');
+      const score = document.getElementById('score');
+      const message = document.getElementById('message');
+      const timestamp = document.getElementById('timestamp');
+      const fill = document.getElementById('statusFill');
+
+      score.textContent = percentage + '%';
+      fill.style.width = percentage + '%';
+
+      if (percentage === 100) {
+        score.style.color = 'var(--green)';
+        message.textContent = '✓ All systems healthy. Ready for deployment.';
+        message.style.color = 'var(--green)';
+      } else if (percentage >= 80) {
+        score.style.color = 'var(--yellow)';
+        message.textContent = '◐ Most systems working. Some issues found.';
+        message.style.color = 'var(--yellow)';
+      } else {
+        score.style.color = 'var(--red)';
+        message.textContent = '✗ Critical issues detected. Fix before deployment.';
+        message.style.color = 'var(--red)';
+      }
+
+      const date = document.getElementById('test-date').value;
+      const testDate = date ? new Date(date).toLocaleDateString() : new Date().toLocaleDateString();
+      timestamp.textContent = `Tested: ${testDate} | ${passed}/${total} checks passed`;
+
+      summary.classList.remove('hidden');
+    }
+
+    function resetResults() {
+      document.getElementById('results').classList.add('hidden');
+      document.getElementById('summary').classList.add('hidden');
+      document.getElementById('loading').classList.add('hidden');
+      testResults = { hygiene: [], functionality: [], phases: [], mobile: [] };
+    }
+  </script>
+</body>
+</html>

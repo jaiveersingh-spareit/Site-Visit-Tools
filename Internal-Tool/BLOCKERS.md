@@ -769,3 +769,10 @@ sandboxed shell; jsdom hangs fetching external resources). Needs on-device testi
 back-to-back photos online, a stretch offline with several photos then reconnecting, and
 a deliberately-broken sync (e.g. wrong token again) to confirm the retry queue and modal
 behave as expected without creating duplicate Drive files.
+
+## 08 — 2nd station: waste streams not selectable; floor-plan scrolling painful
+**Status:** FIXED in code 8 Oct 2026 — needs on-device confirmation
+- **Cause (streams):** the streams list scrolled sideways (overflow-y:auto implies overflow-x:auto) and kept its sideways offset between stations, pushing the checkboxes off-screen so size buttons stayed disabled.
+- **Fix:** overflow-x hidden, scrollLeft/scrollTop reset on open and render, header row wraps (checkbox, name, size buttons stay in view).
+- **Floor plan:** plan container now 62vh tall with 12px side gutters so the page can be scrolled by touching the margins. Values are tunable.
+- **To test on device:** create station A then B — tick streams without "Add More Bins"; scroll the page around the plan; place a pin and confirm it lands where tapped.

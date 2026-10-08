@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <title>Spare-it · Site Visit (TESTING VERSION)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --green: #34A853;
+      --yellow: #FFD600;
+      --dark: #2A2A2A;
+      --bg: #F5F5F5;
+      --card: #FFFFFF;
+      --muted: #757575;
+      --border: #E0E0E0;
+      --danger: #EE4547;
+      --radius: 16px;
+      --shadow: 0 1px 6px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--dark);
+      max-width: 430px;
+      margin: 0 auto;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .hdr {
+      background: var(--dark);
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 80;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+    }
+
+    .hdr h1 { color: #fff; font-size: 15px; font-weight: 700; margin: 0; flex: 1; }
+    .hdr-back { background: rgba(255,255,255,0.12); border: none; color: #fff; width: 40px; height: 40px; border-radius: 10px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .hdr-back:active { background: rgba(255,255,255,0.25); }
+
+    .screen { display: none; padding: 16px 16px 96px; }
+    .screen.active { display: block; }
+
+    .hero {
+      background: var(--dark);
+      margin: -16px -16px 20px;
+      padding: 28px 20px 24px;
+      text-align: center;
+      color: #fff;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    .fgroup { margin-bottom: 14px; }
+    .flabel {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      letter-spacing: 0.7px;
+    }
+
+    input[type=text],
+    input[type=date],
+    textarea {
+      width: 100%;
+      padding: 14px 15px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      font-size: 16px;
+      font-family: inherit;
+      font-weight: 500;
+      background: #fff;
+      color: var(--dark);
+      transition: border-color 0.15s;
+    }
+
+    input:focus,
+    textarea:focus {
+      outline: none;
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(52,168,83,0.12);
+    }
+
+    textarea { min-height: 72px; resize: vertical; line-height: 1.5; }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 15px;
+      font-weight: 700;
+      font-family: inherit;
+      letter-spacing: 0.2px;
+      cursor: pointer;
+      transition: transform 0.1s, filter 0.15s;
+    }
+
+    .btn:active { transform: scale(0.97); filter: brightness(0.92); }
+    .btn-primary { background: var(--green); color: #fff; }
+    .btn-outline { background: #fff; color: var(--green); border: 2px solid var(--green); }
+    .btn-sm { padding: 11px 15px; font-size: 13px; width: auto; border-radius: 10px; }
+
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 200;
+      align-items: flex-end;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal-sheet {
+      background: var(--card);
+      border-radius: 24px 24px 0 0;
+      padding: 24px;
+      width: 100%;
+      max-height: 80vh;
+      overflow-y: auto;
+      animation: slideUp 0.3s ease-out;
+    }
+
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: var(--dark);
+    }
+
+    .debug-log {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      background: #000;
+      color: #0f0;
+      padding: 10px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 10px;
+      max-height: 200px;
+      width: 300px;
+      overflow-y: auto;
+      z-index: 999;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .debug-log-line { margin: 2px 0; }
+    .debug-error { color: #f00; }
+    .debug-success { color: #0f0; }
+    .debug-info { color: #0ff; }
+  </style>
+</head>
+<body>
+  <!-- DEBUG LOG -->
+  <div class="debug-log" id="debug-log"></div>
+
+  <!-- HEADER -->
+  <div class="hdr">
+    <h1>🚀 Spare-it Site Visit (TEST)</h1>
+  </div>
+
+  <!-- LANDING PAGE -->
+  <div id="s-home" class="screen active">
+    <div class="hero">
+      <div style="font-size: 32px; margin-bottom: 8px;">📋</div>
+      <h2 style="font-size: 24px; margin-bottom: 4px;">Site Visit Audit</h2>
+      <p style="font-size: 12px; opacity: 0.8; margin-top: 8px;">Building info & waste streams</p>
+    </div>
+
+    <div class="card">
+      <div class="fgroup">
+        <label class="flabel">Building Name <span style="color: var(--danger);">*</span></label>
+        <input type="text" id="inp-building" placeholder="e.g. 125 Main Street" autocomplete="off" />
+      </div>
+
+      <div class="fgroup">
+        <label class="flabel">Visit Date <span style="color: var(--danger);">*</span></label>
+        <input type="date" id="inp-date" />
+      </div>
+
+      <div class="fgroup">
+        <label class="flabel">Auditor Name <span style="color: var(--danger);">*</span></label>
+        <input type="text" id="inp-auditor" placeholder="Your name" autocomplete="off" />
+      </div>
+
+      <div style="margin: 20px 0; padding: 12px; background: #FFF3CD; border-radius: 8px; font-size: 12px;">
+        <strong>Waste Streams:</strong> Not selected yet
+      </div>
+
+      <button id="btn-start-visit" class="btn btn-primary" style="margin-top: 10px;">Begin Site Visit →</button>
+    </div>
+  </div>
+
+  <!-- VALIDATION MODAL -->
+  <div id="modal-validation" class="modal-overlay">
+    <div class="modal-sheet">
+      <div class="modal-title">⚠️ Missing Required Fields</div>
+      <div id="validation-errors-list" style="margin-bottom: 20px;"></div>
+      <button class="btn btn-primary" onclick="closeModal('modal-validation')">Got it, let me fix these</button>
+    </div>
+  </div>
+
+  <script>
+    // ========== LOGGING SYSTEM ==========
+    const debugLogs = [];
+
+    function addDebugLog(type, message) {
+      const time = new Date().toLocaleTimeString().split(' ')[0];
+      const entry = { type, message, time };
+      debugLogs.push(entry);
+
+      const log = document.getElementById('debug-log');
+      if (log) {
+        const line = document.createElement('div');
+        line.className = `debug-log-line debug-${type}`;
+        line.textContent = `[${time}] ${message}`;
+        log.appendChild(line);
+        log.scrollTop = log.scrollHeight;
+        if (debugLogs.length > 15) log.removeChild(log.firstChild);
+      }
+
+      console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+
+    // ========== CORE FUNCTIONS ==========
+    function openModal(id) {
+      addDebugLog('info', `openModal("${id}") called`);
+      try {
+        const modal = document.getElementById(id);
+        if (!modal) {
+          addDebugLog('error', `Modal not found: ${id}`);
+          alert(`Error: Modal ${id} not found`);
+          return;
+        }
+        modal.classList.add('open');
+        addDebugLog('success', `Modal opened: ${id}`);
+      } catch (e) {
+        addDebugLog('error', `Error opening modal: ${e.message}`);
+      }
+    }
+
+    function closeModal(id) {
+      addDebugLog('info', `closeModal("${id}") called`);
+      try {
+        const modal = document.getElementById(id);
+        if (!modal) {
+          addDebugLog('error', `Modal not found: ${id}`);
+          return;
+        }
+        modal.classList.remove('open');
+        addDebugLog('success', `Modal closed: ${id}`);
+      } catch (e) {
+        addDebugLog('error', `Error closing modal: ${e.message}`);
+      }
+    }
+
+    function startVisit() {
+      addDebugLog('info', '===== startVisit() called =====');
+
+      try {
+        // Get form values
+        const b = document.getElementById('inp-building').value.trim();
+        const d = document.getElementById('inp-date').value;
+        const a = document.getElementById('inp-auditor').value.trim();
+
+        addDebugLog('info', `Building: "${b}"`);
+        addDebugLog('info', `Date: "${d}"`);
+        addDebugLog('info', `Auditor: "${a}"`);
+
+        // Check required fields
+        const missing = [];
+        if (!b) missing.push({ field: 'Building Name', icon: '🏢' });
+        if (!d) missing.push({ field: 'Visit Date', icon: '📅' });
+        if (!a) missing.push({ field: 'Auditor Name', icon: '👤' });
+
+        addDebugLog('info', `Missing fields: ${missing.length}`);
+
+        if (missing.length) {
+          addDebugLog('warn', 'Validation failed - showing errors');
+
+          const errorHTML = missing
+            .map(
+              item =>
+                `<div style="background: #FEF2F2; border-left: 4px solid #EE4547; padding: 12px; margin-bottom: 10px; border-radius: 6px;">
+              <div style="font-weight: 600; color: var(--dark); margin-bottom: 4px;">${item.icon} ${item.field}</div>
+            </div>`
+            )
+            .join('');
+
+          const errorListEl = document.getElementById('validation-errors-list');
+          if (errorListEl) {
+            errorListEl.innerHTML = errorHTML;
+            addDebugLog('success', 'Error list populated');
+          } else {
+            addDebugLog('error', 'validation-errors-list element not found');
+          }
+
+          openModal('modal-validation');
+          return;
+        }
+
+        addDebugLog('success', 'All validations passed!');
+        alert('✅ Form is valid! (In real version, this would navigate to next page)');
+      } catch (err) {
+        addDebugLog('error', `Exception: ${err.message}`);
+        console.error('Error in startVisit:', err);
+      }
+    }
+
+    // ========== EVENT LISTENER ATTACHMENT ==========
+    function setupEventListeners() {
+      addDebugLog('info', 'Setting up event listeners...');
+
+      const btn = document.getElementById('btn-start-visit');
+      if (!btn) {
+        addDebugLog('error', 'Button not found: btn-start-visit');
+        return;
+      }
+
+      addDebugLog('success', 'Button found');
+
+      btn.addEventListener('click', function (e) {
+        addDebugLog('info', 'Button clicked (click event)');
+        e.preventDefault();
+        e.stopPropagation();
+        startVisit();
+      });
+
+      btn.addEventListener('touchend', function (e) {
+        addDebugLog('info', 'Button touched (touchend event)');
+        e.preventDefault();
+        e.stopPropagation();
+        startVisit();
+      });
+
+      addDebugLog('success', 'Event listeners attached');
+    }
+
+    // ========== MODAL CLICK-TO-CLOSE ==========
+    document.addEventListener('DOMContentLoaded', function () {
+      addDebugLog('info', 'DOMContentLoaded fired');
+
+      document.querySelectorAll('.modal-overlay').forEach(m => {
+        m.addEventListener('click', e => {
+          if (e.target === m) {
+            addDebugLog('info', 'Modal overlay clicked - closing');
+            m.classList.remove('open');
+          }
+        });
+      });
+
+      setupEventListeners();
+    });
+
+    // ========== INITIALIZATION ==========
+    window.addEventListener('load', function () {
+      addDebugLog('success', '🚀 Page loaded, ready to test');
+      addDebugLog('info', 'Try clicking "Begin Site Visit →" with empty form');
+      addDebugLog('info', 'Then fill in fields and try again');
+    });
+  </script>
+</body>
+</html>

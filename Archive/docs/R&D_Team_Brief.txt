@@ -1,0 +1,131 @@
+═══════════════════════════════════════════════════════════════════════════════
+POSITIONING FOR R&D TEAM — SYSTEM INTAKE ARCHITECTURE
+═══════════════════════════════════════════════════════════════════════════════
+
+CURRENT WORKFLOW (The Problem)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Site Visit Form (iPhone)
+    ↓
+Operator takes photos + marks up floor plan
+    ↓
+All data stored in browser memory (base64)
+    ↓
+Click Export → Excel file downloads
+    ↓ 
+Photos are ONLY filenames in Excel
+    ↓
+❌ No actual image files
+❌ Manual re-upload needed to your system
+❌ Photos scattered in Downloads folder
+❌ Floor plan markup lost
+
+
+PROPOSED WORKFLOW (The Solution)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Site Visit Form (iPhone)
+    ↓
+Operator takes photos + marks up floor plan
+    ↓
+Click Export → Single ZIP file with:
+    • All photos as JPEG/PNG files
+    • Floor plan markup as image with pins
+    • metadata.json (complete data map)
+    • site_visit_data.xlsx (original export)
+    ↓
+ZIP downloaded to any device
+    ↓
+Upload ZIP to your system via API/portal
+    ↓
+Your system:
+    ✓ Parses metadata.json
+    ✓ Validates all files present
+    ✓ Moves photos to permanent storage (S3/etc)
+    ✓ Creates database records with photo links
+    ✓ Renders floor plan with pins in dashboard
+    ↓
+✅ Complete digital site record
+
+
+KEY BENEFITS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+For Operations:
+  • Single ZIP file (easy to share, backup, verify completeness)
+  • No manual photo linking
+  • Everything in one place
+
+For Your System:
+  • Structured, predictable input format
+  • metadata.json provides all context (no guessing)
+  • Easy batch processing (parse JSON, move files, create records)
+  • Audit trail (full metadata stored)
+
+For Future Features:
+  • Photo geolocation (add GPS via metadata)
+  • Waste classification (run CV on photos during intake)
+  • Real-time sync (when ready, remove ZIP, stream directly)
+
+
+IMPLEMENTATION PHASES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PHASE 1 — Mobile App Changes (5–7 days)
+  1. Extract base64 photos → JPEG files (JavaScript Blob API)
+  2. Export floor plan canvas → PNG screenshot
+  3. Generate metadata.json with all file mappings
+  4. Package as ZIP (use JSZip library or server-side if needed)
+  5. Replace current Excel download with ZIP download
+  
+  Effort: Low (mostly client-side JavaScript)
+  No database changes needed yet
+
+PHASE 2 — System Intake (Backend work, 3–4 weeks)
+  1. Create API endpoint: POST /intake/site-visit (accept ZIP)
+  2. Parse metadata.json
+  3. Validate file structure
+  4. Move photos to permanent storage
+  5. Create SiteVisit, Photo, FloorPlanMarkup records
+  
+  Effort: Moderate (JSON parsing, file handling, DB records)
+  Delivers: Fully automated intake (no manual steps)
+
+PHASE 3 — UI Integration (Nice-to-have, 1–2 weeks)
+  1. Dashboard UI to visualize uploaded sites
+  2. Photo gallery with floor plan overlay
+  3. Geo-tagging (if GPS added to metadata)
+  4. Status tracking during intake
+
+
+WHAT TO ASK YOUR R&D TEAM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Can the backend handle ZIP uploads? What size limit?
+
+2. Should metadata.json be stored in the database, or just parsed and discarded?
+
+3. Do you want pin coordinates as:
+   • Exact pixels (0–800px on image)?
+   • Percentages (0–100% x/y on floor plan)?
+   • Lat/long + floor number?
+
+4. File format preference:
+   • JPEG (70% quality, ~500KB/photo)?
+   • PNG (lossless, ~2MB/photo)?
+   • Auto-compress based on file size?
+
+5. Should we integrate a progress bar during upload, or is a simple "uploading..." fine?
+
+6. Future: Once intake is working, do you want auto-classification of waste in photos?
+   (This would require feeding photos through a waste CV model)
+
+
+NEXT STEP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+→ Share this proposal with your R&D/Backend team
+→ Get answers to the questions above
+→ They can start Phase 2 work (API endpoint) while we build Phase 1 (ZIP export)
+
+═══════════════════════════════════════════════════════════════════════════════

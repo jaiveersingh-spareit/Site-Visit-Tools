@@ -1,0 +1,71 @@
+{
+  "reportId": "zoom-stress-test-1781132658147",
+  "timestamp": "2026-06-10T23:04:18.147Z",
+  "testSession": "Production Stress Test",
+  "status": "IN_PROGRESS - CRITICAL BUG FOUND",
+  "overallMetrics": {
+    "totalTests": 96,
+    "passedTests": 16,
+    "failedTests": 80,
+    "overallAccuracy": 16.67,
+    "targetAccuracy": 99.0
+  },
+  "criticalFindingssummary": {
+    "mainIssue": "PIN RENDERING FAILURE",
+    "description": "Pins are created in data structure but NOT rendering on the floor plan screen",
+    "affectedZoomLevels": "ALL (100%, 125%, 150%, 175%)",
+    "failureRate": "83.33%",
+    "severity": "CRITICAL"
+  },
+  "accuracyByZoomLevel": {
+    "100percent": {
+      "accuracy": 16.67,
+      "passed": 4,
+      "failed": 20,
+      "total": 24
+    },
+    "125percent": {
+      "accuracy": 16.67,
+      "passed": 4,
+      "failed": 20,
+      "total": 24
+    },
+    "150percent": {
+      "accuracy": 16.67,
+      "passed": 4,
+      "failed": 20,
+      "total": 24
+    },
+    "175percent": {
+      "accuracy": 16.67,
+      "passed": 4,
+      "failed": 20,
+      "total": 24
+    }
+  },
+  "bugsIdentified": 80,
+  "bugType": "PIN_NOT_RENDERED",
+  "rootCauseAnalysis": {
+    "hypothesis1": "Floor plan screen (s-floor) not visible when running tests",
+    "hypothesis2": "Pins container DOM element not initialized",
+    "hypothesis3": "renderPins() called before floor plan image loaded",
+    "nextAction": "Verify floor plan UI is visible and renderPins() is operating on correct DOM"
+  },
+  "recommendations": [
+    {
+      "priority": "CRITICAL",
+      "action": "Fix pin rendering - ensure s-floor screen is visible and pins container exists in DOM",
+      "impact": "Will unblock all 80 failing tests"
+    },
+    {
+      "priority": "HIGH",
+      "action": "Verify floor plan image is loaded before rendering pins",
+      "impact": "Prevent rendering issues with missing image data"
+    },
+    {
+      "priority": "HIGH",
+      "action": "Once pins render, verify coordinate accuracy at each zoom level",
+      "impact": "Achieve 99% accuracy target"
+    }
+  ]
+}

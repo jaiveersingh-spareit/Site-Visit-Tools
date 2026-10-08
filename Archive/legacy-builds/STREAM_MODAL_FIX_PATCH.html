@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stream Modal Diagnostic Tool</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 8px; }
+        h2 { color: #333; border-bottom: 2px solid #0066cc; padding-bottom: 10px; }
+        code { background: #fff; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+        .code-block { background: #fff; border: 1px solid #ddd; padding: 15px; border-radius: 4px; overflow-x: auto; margin: 10px 0; }
+        pre { margin: 0; }
+        button { background: #0066cc; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0052a3; }
+        .diagnostic-result { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .pass { background: #d4edda; border-left: 4px solid #28a745; }
+        .fail { background: #f8d7da; border-left: 4px solid #dc3545; }
+        .info { background: #d1ecf1; border-left: 4px solid #0c5460; }
+    </style>
+</head>
+<body>
+    <h1>Stream Selection Modal - Diagnostic & Fix Tool</h1>
+
+    <div class="section">
+        <h2>1. Quick Diagnostic</h2>
+        <p>Open your site visit app in another tab/window, then come back here and click below:</p>
+        <button onclick="runDiagnostics()">Run Full Diagnostic</button>
+        <div id="diagnostic-output"></div>
+    </div>
+
+    <div class="section">
+        <h2>2. Browser Console Test</h2>
+        <p>Open your site visit app, press <code>F12</code>, go to Console tab, and paste this code:</p>
+        <div class="code-block">
+            <pre>// Quick test of the modal system
+console.log('Testing modal system...');
+const modal = document.getElementById('modal-stream-select');
+console.log('Modal exists:', !!modal);
+console.log('Modal display:', window.getComputedStyle(modal).display);
+console.log('Modal has open class:', modal.classList.contains('open'));
+
+// Try opening it
+console.log('\nOpening modal...');
+openModal('modal-stream-select');
+
+// Check again
+setTimeout(() => {
+  console.log('After opening:');
+  console.log('Modal display:', window.getComputedStyle(modal).display);
+  console.log('Modal has open class:', modal.classList.contains('open'));
+  console.log('Modal parent:', modal.parentElement?.tagName);
+  console.log('Modal offset height:', modal.offsetHeight);
+}, 100);</pre>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>3. Potential Fixes</h2>
+
+        <h3>Issue #1: Button Click Not Triggering</h3>
+        <p>If the console shows the openStreamSelectHome() function is NOT being called, try this fix:</p>
+        <div class="code-block">
+            <pre>// Add this to the browser console while on the home screen
+const btn = document.querySelector('[onclick="openStreamSelectHome()"]');
+if (btn) {
+  btn.removeAttribute('onclick');
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    openStreamSelectHome();
+  });
+  console.log('Button event listener reattached');
+} else {
+  console.error('Button not found!');
+}</pre>
+        </div>
+
+        <h3>Issue #2: Modal Not Displaying</h3>
+        <p>If the console shows openModal() was called but the modal still doesn't display:</p>
+        <div class="code-block">
+            <pre>// Check CSS
+const modal = document.getElementById('modal-stream-select');
+const computed = window.getComputedStyle(modal);
+console.log('Display:', computed.display);
+console.log('Position:', computed.position);
+console.log('Z-index:', computed.zIndex);
+console.log('Visibility:', computed.visibility);
+
+// Force display
+modal.classList.add('open');
+modal.style.display = 'flex'; // Override any CSS
+console.log('Modal forced visible');</pre>
+        </div>
+
+        <h3>Issue #3: All Functions Exist but Modal Still Doesn't Open</h3>
+        <p>There might be a CSS animation issue. Try this patch in the browser console:</p>
+        <div class="code-block">
+            <pre>// Backup original openModal
+const originalOpenModal = window.openModal;
+
+// Override with enhanced version
+window.openModal = function(id) {
+  const modal = document.getElementById(id);
+  if (!modal) {
+    console.error('Modal not found:', id);
+    return false;
+  }
+
+  // Remove any animation delays
+  modal.style.pointerEvents = 'auto';
+  modal.style.opacity = '1';
+  modal.style.visibility = 'visible';
+
+  // Add open class
+  modal.classList.add('open');
+
+  // Force reflow to ensure CSS is applied
+  void modal.offsetHeight;
+
+  console.log('Enhanced openModal - Modal:', id, 'is now open');
+
+  // Call renderStreamSelector if needed
+  if (id === 'modal-stream-select' && typeof renderStreamSelector === 'function') {
+    renderStreamSelector();
+  }
+
+  return true;
+};
+
+console.log('openModal override installed');</pre>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>4. Permanent Fix (For Code)</h2>
+        <p>If the above temporary fixes work, you should apply this permanent fix to the HTML file:</p>
+
+        <h3>Step 1: Find and Update openModal() Function</h3>
+        <p>Look for the openModal() function around line 1184 and ensure it looks like this:</p>
+        <div class="code-block">
+            <pre>function openModal(id){
+  console.log(`openModal("${id}") called`);
+  try {
+    const modal=document.getElementById(id);
+    if(!modal){
+      console.error(`CRITICAL: Modal not found: ${id}`);
+      console.log('Available modals:', document.querySelectorAll('.modal-overlay'));
+      alert(`Error: Modal "${id}" not found. Please refresh the page.`);
+      return false;
+    }
+
+    // Remove any display: none overrides
+    modal.style.display = '';
+    modal.style.visibility = '';
+    modal.style.opacity = '';
+    modal.style.pointerEvents = 'auto';
+
+    console.log(`Modal found: ${id}`);
+    if(modal.classList.contains('open')){ console.log(`Modal already open: ${id}`); return true; }
+    modal.classList.add('open');
+    console.log(`✓ Open class added to modal: ${id}`);
+
+    // Force reflow
+    void modal.offsetHeight;
+
+    setTimeout(()=>{
+      if(!modal.classList.contains('open')){
+        console.error(`WARNING: Open class removed from ${id}`);
+      } else {
+        console.log(`✓ Verified: Modal ${id} is open`);
+      }
+    }, 100);
+
+    if(id==='modal-stream-select'){
+      console.log('Rendering stream selector...');
+      if(typeof renderStreamSelector==='function') renderStreamSelector();
+    }
+    if(id==='modal-bin'){
+      console.log('Rendering bin form...');
+      if(typeof renderBinForm==='function') renderBinForm();
+    }
+    return true;
+  } catch(e) {
+    console.error(`Error opening modal ${id}:`, e);
+    console.error('Stack:', e.stack);
+    return false;
+  }
+}</pre>
+        </div>
+
+        <h3>Step 2: Add Event Listener Backup (After All HTML)</h3>
+        <p>Before the closing <code>&lt;/body&gt;</code> tag, add this backup event system:</p>
+        <div class="code-block">
+            <pre>// Backup event system for modals
+document.addEventListener('DOMContentLoaded', () => {
+  const streamBtn = document.querySelector('[onclick="openStreamSelectHome()"]');
+  if (streamBtn && !streamBtn.__eventSetup) {
+    streamBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log('Stream button clicked via event listener backup');
+      openStreamSelectHome();
+    });
+    streamBtn.__eventSetup = true;
+  }
+});</pre>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>5. Step-by-Step Diagnosis Guide</h2>
+        <ol>
+            <li>Open your site visit app</li>
+            <li>Press <code>F12</code> to open Developer Tools</li>
+            <li>Click the <code>Console</code> tab</li>
+            <li>Click the "Select Waste Streams" button in your app</li>
+            <li>Look at the console output:
+                <ul>
+                    <li>✓ You should see: <code>openModal("modal-stream-select") called</code></li>
+                    <li>✓ Then: <code>Modal found: modal-stream-select</code></li>
+                    <li>✓ Then: <code>✓ Open class added to modal: modal-stream-select</code></li>
+                </ul>
+            </li>
+            <li>If you DON'T see these messages, the onclick() isn't being called or there's a JavaScript error before it</li>
+            <li>If you DO see these messages but the modal doesn't show up visually, it's a CSS issue</li>
+        </ol>
+    </div>
+
+    <div class="section">
+        <h2>6. Common Root Causes & Solutions</h2>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr style="background: #f0f0f0;">
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Symptom</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Likely Cause</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Fix</th>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Console shows nothing when button clicked</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">onclick attribute not working</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">Add event listener backup (Step 2)</td>
+            </tr>
+            <tr style="background: #f9f9f9;">
+                <td style="border: 1px solid #ddd; padding: 8px;">Console shows errors before openModal called</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">JavaScript error in openStreamSelectHome()</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">Check console errors and fix them</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Console shows "Modal found" but modal invisible</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">CSS display: none not being overridden</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">Update openModal() function (Step 1)</td>
+            </tr>
+            <tr style="background: #f9f9f9;">
+                <td style="border: 1px solid #ddd; padding: 8px;">Modal appears then disappears</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">Modal click listener removing open class</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">Check line 1325 modal event listener</td>
+            </tr>
+        </table>
+    </div>
+
+    <script>
+        function runDiagnostics() {
+            const output = document.getElementById('diagnostic-output');
+            let html = '<h3>Diagnostic Results:</h3>';
+
+            try {
+                // Note: This won't work unless the user has the app open in another window
+                html += '<div class="diagnostic-result info">';
+                html += '<strong>Info:</strong> To run the full diagnostic, you need to open your site visit app in another browser tab/window while this window is open.<br><br>';
+                html += 'Then, copy this code into your app\'s console (F12 → Console) and paste it:<br>';
+                html += '<code style="background: #fff; padding: 8px; display: block; margin-top: 10px; border-radius: 4px;">';
+                html += 'const m = document.getElementById("modal-stream-select"); console.log("Modal exists:", !!m, "Open class:", m?.classList.contains("open"), "Display:", getComputedStyle(m).display);';
+                html += '</code>';
+                html += '</div>';
+            } catch (e) {
+                html += '<div class="diagnostic-result fail">';
+                html += '<strong>Error:</strong> ' + e.message;
+                html += '</div>';
+            }
+
+            output.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bin Code Generation Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .test-container {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 { color: #333; }
+    h2 { color: #666; margin-top: 20px; }
+    .test-case {
+      background: #f9f9f9;
+      padding: 15px;
+      margin: 10px 0;
+      border-left: 4px solid #4CAF50;
+      border-radius: 4px;
+    }
+    .pass { border-left-color: #4CAF50; }
+    .fail { border-left-color: #f44336; background: #ffebee; }
+    .code-output {
+      background: #f0f0f0;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      margin: 10px 0;
+      word-break: break-all;
+    }
+    .result {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    .pass-result {
+      background: #c8e6c9;
+      color: #2e7d32;
+    }
+    .fail-result {
+      background: #ffcdd2;
+      color: #c62828;
+    }
+  </style>
+</head>
+<body>
+
+<div class="test-container">
+  <h1>🧪 Bin Code Generation Test Suite</h1>
+  <p>Testing the bin code generation logic to verify the format matches Spare-it API specifications.</p>
+
+  <button onclick="runAllTests()" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;">
+    Run All Tests
+  </button>
+
+  <div id="results"></div>
+</div>
+
+<script>
+// ====== CONSTANTS FROM MVP ======
+const WASTE_STREAMS = {
+  'Trash':'T','Recycling':'R','Paper/Cardboard':'P','Compost':'C','Glass':'G',
+  'Plastics':'PL','Food Share':'FS','Plastic Bottles':'PB','Metals':'M',
+  'e-Waste':'E','Biohazard':'BH','Coffee Cups':'CC'
+};
+const SCALE_ABBREV = {Large:'l',Medium:'m',Small:'s'};
+const ACCESSORY_CODES = {'Bag':'w','Button':'q','Bottom Plate':'z','Top Plate':'a','Strap':'x','LOKSAK Bag':'w'};
+
+// ====== HELPER FUNCTIONS ======
+function getBuildingCode(buildingName) {
+  if(!buildingName) return '';
+  const match = buildingName.match(/\s(\d{3,5})\s-/);
+  return match ? match[1] : '';
+}
+
+function getStreamCode(streamName) {
+  return WASTE_STREAMS[streamName] || 'X';
+}
+
+function generateBinCode(buildingCode, stationIdentifier, stream, occurrence, scale, accessories) {
+  const streamCode = getStreamCode(stream);
+  const scaleCode = SCALE_ABBREV[scale] || '?';
+
+  let binCode = buildingCode + stationIdentifier + streamCode + occurrence + scaleCode;
+
+  // Add accessory codes if present
+  if (accessories && accessories.length > 0) {
+    const accessoryCodes = accessories
+      .map(acc => ACCESSORY_CODES[acc] || '?')
+      .join('');
+    if (accessoryCodes) {
+      binCode += '_' + accessoryCodes;
+    }
+  }
+
+  return binCode;
+}
+
+// ====== TEST CASES ======
+function runAllTests() {
+  const resultsDiv = document.getElementById('results');
+  resultsDiv.innerHTML = '';
+
+  let passCount = 0;
+  let failCount = 0;
+
+  const tests = [
+    {
+      name: "Building Code Extraction",
+      fn: () => {
+        const building1 = "CA 5840 - Hawthorne, Rosecrans Ave";
+        const building2 = "GA 976 - Atlanta, Buckhead (B&N)";
+        const code1 = getBuildingCode(building1);
+        const code2 = getBuildingCode(building2);
+
+        const pass = code1 === "5840" && code2 === "976";
+        return {
+          pass,
+          details: `
+            Building 1: "${building1}" → Code: "${code1}" (expected "5840")
+            Building 2: "${building2}" → Code: "${code2}" (expected "976")
+          `
+        };
+      }
+    },
+    {
+      name: "Stream Code Mapping",
+      fn: () => {
+        const tests = [
+          {stream: 'Trash', expected: 'T'},
+          {stream: 'Compost', expected: 'C'},
+          {stream: 'Recycling', expected: 'R'},
+          {stream: 'Paper/Cardboard', expected: 'P'}
+        ];
+
+        const results = tests.map(t => ({
+          ...t,
+          actual: getStreamCode(t.stream)
+        }));
+
+        const pass = results.every(r => r.actual === r.expected);
+        const details = results.map(r => `${r.stream} → ${r.actual} (expected ${r.expected})`).join('<br>');
+
+        return { pass, details };
+      }
+    },
+    {
+      name: "Simple Bin Code (No Accessories)",
+      fn: () => {
+        const building = "5840";
+        const station = "A";
+        const stream = "Trash";
+        const occurrence = 1;
+        const scale = "Small";
+        const accessories = [];
+
+        const binCode = generateBinCode(building, station, stream, occurrence, scale, accessories);
+        const expected = "5840AT1s";
+        const pass = binCode === expected;
+
+        return {
+          pass,
+          details: `Generated: "${binCode}" | Expected: "${expected}"`
+        };
+      }
+    },
+    {
+      name: "Bin Code with Single Accessory (Bag)",
+      fn: () => {
+        const building = "5840";
+        const station = "B1";
+        const stream = "Trash";
+        const occurrence = 1;
+        const scale = "Small";
+        const accessories = ['Bag'];
+
+        const binCode = generateBinCode(building, station, stream, occurrence, scale, accessories);
+        const expected = "5840B1T1s_w";
+        const pass = binCode === expected;
+
+        return {
+          pass,
+          details: `Generated: "${binCode}" | Expected: "${expected}"`
+        };
+      }
+    },
+    {
+      name: "Bin Code with Multiple Accessories (Bag + Strap)",
+      fn: () => {
+        const building = "5840";
+        const station = "E1";
+        const stream = "Trash";
+        const occurrence = 2;
+        const scale = "Small";
+        const accessories = ['Bag', 'Strap'];
+
+        const binCode = generateBinCode(building, station, stream, occurrence, scale, accessories);
+        const expected = "5840E1T2s_wx";
+        const pass = binCode === expected;
+
+        return {
+          pass,
+          details: `Generated: "${binCode}" | Expected: "${expected}"`
+        };
+      }
+    },
+    {
+      name: "Bin Code with Complex Accessories (Button + Bottom Plate)",
+      fn: () => {
+        const building = "6705";
+        const station = "B1";
+        const stream = "Paper/Cardboard";
+        const occurrence = 1;
+        const scale = "Medium";
+        const accessories = ['Button', 'Bottom Plate'];
+
+        const binCode = generateBinCode(building, station, stream, occurrence, scale, accessories);
+        const expected = "6705B1P1m_qz";
+        const pass = binCode === expected;
+
+        return {
+          pass,
+          details: `Generated: "${binCode}" | Expected: "${expected}"`
+        };
+      }
+    },
+    {
+      name: "Real-World Example: Spare-it Store",
+      fn: () => {
+        const building = "5840";
+        const station = "L1";
+        const stream = "Compost";
+        const occurrence = 1;
+        const scale = "Small";
+        const accessories = [];
+
+        const binCode = generateBinCode(building, station, stream, occurrence, scale, accessories);
+        const expected = "5840L1C1s";
+        const pass = binCode === expected;
+
+        return {
+          pass,
+          details: `Store 5840, Location L1, Compost bin<br>Generated: "${binCode}" | Expected: "${expected}"`
+        };
+      }
+    },
+    {
+      name: "Multiple Occurrences of Same Stream",
+      fn: () => {
+        const codes = [
+          { occurrence: 1, expected: "5840AT1s", occurrence_num: 1 },
+          { occurrence: 2, expected: "5840AT2s", occurrence_num: 2 },
+          { occurrence: 3, expected: "5840AT3s", occurrence_num: 3 }
+        ];
+
+        const results = codes.map(c => ({
+          ...c,
+          actual: generateBinCode("5840", "A", "Trash", c.occurrence_num, "Small", [])
+        }));
+
+        const pass = results.every(r => r.actual === r.expected);
+        const details = results.map(r => `Occurrence ${r.occurrence_num}: "${r.actual}" (expected "${r.expected}")`).join('<br>');
+
+        return { pass, details };
+      }
+    }
+  ];
+
+  tests.forEach(test => {
+    try {
+      const result = test.fn();
+      const className = result.pass ? 'pass' : 'fail';
+      const statusIcon = result.pass ? '✅' : '❌';
+
+      const html = `
+        <div class="test-case ${className}">
+          <strong>${statusIcon} ${test.name}</strong>
+          <div class="code-output">${result.details}</div>
+          <div class="result ${result.pass ? 'pass-result' : 'fail-result'}">
+            ${result.pass ? 'PASS' : 'FAIL'}
+          </div>
+        </div>
+      `;
+
+      resultsDiv.innerHTML += html;
+      if (result.pass) passCount++; else failCount++;
+    } catch (e) {
+      const html = `
+        <div class="test-case fail">
+          <strong>❌ ${test.name}</strong>
+          <div class="code-output" style="color: red;">ERROR: ${e.message}</div>
+          <div class="result fail-result">FAIL</div>
+        </div>
+      `;
+      resultsDiv.innerHTML += html;
+      failCount++;
+    }
+  });
+
+  const summary = `
+    <div class="test-container">
+      <h2>Test Summary</h2>
+      <div class="result ${failCount === 0 ? 'pass-result' : 'fail-result'}">
+        ${passCount} passed, ${failCount} failed out of ${tests.length} tests
+      </div>
+    </div>
+  `;
+
+  resultsDiv.innerHTML += summary;
+}
+
+// Auto-run tests on load
+window.addEventListener('load', runAllTests);
+</script>
+
+</body>
+</html>

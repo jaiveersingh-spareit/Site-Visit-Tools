@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MVP Full Flow — All 9 Screens</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Montserrat', -apple-system, sans-serif;
+      background: #f8f8f8;
+      color: #2A2A2A;
+      padding: 40px 20px;
+    }
+    .container { max-width: 1400px; margin: 0 auto; }
+    h1 { font-size: 28px; font-weight: 700; margin-bottom: 12px; }
+    .subtitle { font-size: 14px; color: #757575; margin-bottom: 40px; }
+
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 48px; margin-bottom: 40px; }
+
+    .phase {
+      padding: 24px 0;
+    }
+
+    .phase-label {
+      font-size: 11px;
+      font-weight: 800;
+      color: #757575;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .phase-label::before {
+      content: '';
+      display: inline-block;
+      width: 4px;
+      height: 4px;
+      background: #34A853;
+      border-radius: 50%;
+    }
+
+    .screen-item {
+      margin-bottom: 24px;
+    }
+
+    .screen-preview {
+      background: white;
+      border: 1px solid #E0E0E0;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      margin-bottom: 12px;
+      min-height: 280px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .screen-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+
+    .screen-content {
+      font-size: 12px;
+      line-height: 1.6;
+      color: #757575;
+    }
+
+    .screen-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #2A2A2A;
+      margin-top: 8px;
+      margin-bottom: 4px;
+    }
+
+    .arrow {
+      text-align: center;
+      font-size: 24px;
+      color: #34A853;
+      margin: 16px 0;
+      font-weight: 600;
+    }
+
+    .screen-mini {
+      font-size: 11px;
+      font-weight: 500;
+      color: white;
+      background: #34A853;
+      padding: 4px 8px;
+      border-radius: 4px;
+      display: inline-block;
+      margin-top: 8px;
+    }
+
+    @media print {
+      body { background: white; padding: 0; }
+      .grid { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>MVP Full Flow — All 9 Screens</h1>
+  <p class="subtitle">Complete user journey from building info to audit export</p>
+
+  <div class="grid">
+
+    <!-- SETUP PHASE -->
+    <div class="phase">
+      <div class="phase-label">Setup Phase</div>
+
+      <!-- Screen 1: Landing Page -->
+      <div class="screen-item">
+        <div class="screen-preview">
+          <div class="screen-icon">🏢</div>
+          <div class="screen-label">1. Landing Page</div>
+          <div class="screen-content">
+            Building name<br/>
+            Address<br/>
+            Facility manager<br/>
+            Visit date<br/>
+            Auditor name
+          </div>
+          <span class="screen-mini">Form Input</span>
+        </div>
+        <div class="arrow">↓</div>
+      </div>
+
+      <!-- Screen 2: Waste Streams -->
+      <div class="screen-item">
+        <div class="screen-preview">
+          <div class="screen-icon">♻️</div>
+          <div class="screen-label">2. Waste Streams</div>
+          <div class="screen-content">
+            ☑ Trash<br/>
+            ☑ Recycling<br/>
+            ☑ Paper/Cardboard<br/>
+            ☑ Compost<br/>
+            ☐ Glass
+          </div>
+          <span class="screen-mini">Multi-Select</span>
+        </div>
+        <div class="arrow">↓</div>
+      </div>
+
+      <!-- Screen 3: Floors -->
+      <div class="screen-item">
+        <div class="screen-preview">
+          <div class="screen-icon">🏗️</div>
+          <div class="screen-label">3. Floors</div>
+          <div class="screen-content">
+            Floor 1: 4 stations est.<br/>
+            Floor 2: 3 stations est.<br/>
+            Floor 3: 2 stations est.<br/>
+            <br/>
+            + Add Floor
+          </div>
+          <span class="screen-mini">List + Add</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXECUTION PHASE -->
+    <div class="phase">
+      <div class="phase-label">Execution Phase</div>
+
+      <!-- Screen 4: Add Object Modal -->
+      <div class="screen-item">
+        <div class="screen-preview">
+          <div class="screen-icon">❓</div>
+          <div class="screen-label">4. Add Object Modal</div>
+          <div class="screen-content">
+            What type of object?<br/><br/>
+            🔴 Station<br/>
+            🟡 Gateway<br/>
+            🟣 Display<br/>
+          </div>
+          <span class="screen-mini">Modal Selection</span>
+        </div>
+        <div class="arrow">↓</div>
+      </div>
+
+      <!-- Screen 5: Floor Plan -->
+      <div class="screen-item">
+        <div class="screen-preview">
+          <div class="screen-icon">📐</div>
+          <div class="screen-label">5. Floor Plan</div>
+          <div class="screen-content">
+            [Floor plan canvas]<br/>
+            Tap to upload plan<br/>
+            Pinch to zoom<br/>
+            Pan to navigate<br/>
+          </div>
+          <span class="screen-mini">Interactive Canvas</span>
+        </div>
+        <div class="arrow">↓</div>
+      </div>
+
+      <!-- Screen 6: Place on Plan -->
+      <div class="screen-item">
+        <div class="screen-preview">
+          <div class="screen-icon">📍</div>
+          <div class="screen-label">6. Place on Plan</div>
+          <div class="screen-content">
+            Tap the floor plan<br/>
+            to place station<br/><br/>
+            [User taps location]<br/>
+            <br/>
+            📍 Add Pin / Replace
+          </div>
+          <span class="screen-mini">Placement Mode</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMPLETION PHASE -->
+    <div class="phase">
+      <div class="phase-label">Completion Phase</div>
+
+      <!-- Screen 7: Station Details -->
+      <div class="screen-item">
+        <div class="screen-preview">
+          <div class="screen-icon">📝</div>
+          <div class="screen-label">7. Station Details</div>
+          <div class="screen-content">
+            Create Station A<br/>
+            Scale sizes:<br/>
+            ☑ Trash - Small<br/>
+            ☑ Recycling - Medium<br/>
+            ☑ Cardboard - Large<br/>
+            + Add More Bins
+          </div>
+          <span class="screen-mini">Form + Photos</span>
+        </div>
+        <div class="arrow">↓</div>
+      </div>
+
+      <!-- Screen 8: Pins Placed -->
+      <div class="screen-item">
+        <div class="screen-preview">
+          <div class="screen-icon">📌</div>
+          <div class="screen-label">8. Pins on Floor Plan</div>
+          <div class="screen-content">
+            [Floor plan with pins]<br/>
+            🟢 A - Station A<br/>
+            🟢 B - Station B<br/>
+            🟡 GW1 - Gateway<br/>
+            🟣 D1 - Display<br/>
+            <br/>
+            4 of 9 items placed
+          </div>
+          <span class="screen-mini">Visual Feedback</span>
+        </div>
+        <div class="arrow">↓</div>
+      </div>
+
+      <!-- Screen 9: Export -->
+      <div class="screen-item">
+        <div class="screen-preview" style="background: linear-gradient(135deg, #E6F4EB 0%, #F5F5F5 100%);">
+          <div class="screen-icon">📊</div>
+          <div class="screen-label">9. Export Audit</div>
+          <div class="screen-content">
+            ✓ Email to Operations<br/>
+            ✓ Export as ZIP<br/>
+            ✓ Export as Excel<br/>
+            ✓ Export Pins (CSV)<br/>
+            ✓ Export Bins (CSV)
+          </div>
+          <span class="screen-mini" style="background: #34A853;">Complete</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <div style="margin-top: 60px; padding: 24px; background: white; border-radius: 12px; border: 1px solid #E0E0E0;">
+    <p style="font-size: 12px; color: #757575; margin-bottom: 8px;"><strong>Typical Audit Duration:</strong> 45-90 minutes for 8-12 station facility</p>
+    <p style="font-size: 12px; color: #757575; margin-bottom: 8px;"><strong>Data Collected:</strong> Building info, waste streams, floor plans, station photos, waste stream inventory, bin configurations</p>
+    <p style="font-size: 12px; color: #757575;"><strong>Deliverables:</strong> Excel spreadsheet, annotated floor plans, photos, audit report</p>
+  </div>
+</div>
+
+</body>
+</html>

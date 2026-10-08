@@ -1,0 +1,69 @@
+{
+  "testPhase": "Phase 1: 100% & 125% Zoom Baseline Testing",
+  "timestamp": "2026-06-10T23:30:00Z",
+  "objectiveStatus": "BUG IDENTIFIED - Y-COORDINATE OFFSET FOUND",
+  "summary": {
+    "pinsCreated": 5,
+    "strategicCoordinates": [
+      "(50%, 50%) - CENTER",
+      "(20%, 20%) - TOP_LEFT",
+      "(80%, 80%) - BOTTOM_RIGHT",
+      "(30%, 70%) - LEFT_LOWER",
+      "(70%, 30%) - RIGHT_UPPER"
+    ],
+    "zoomLevelsTested": ["100%", "125%"],
+    "discoveryKey": "X-axis is perfect, Y-axis has systematic 37.7px offset"
+  },
+
+  "keyFindings": {
+    "xCoordinateAccuracy": {
+      "status": "✓ PERFECT",
+      "errorAcross100Percent": "0.00px",
+      "errorAcross125Percent": "0.00px",
+      "conclusion": "X formula is CORRECT"
+    },
+    "yCoordinateAccuracy": {
+      "status": "❌ BUGGY",
+      "errorPattern": "Consistent 37.7px offset at all zoom levels",
+      "errorAcross100Percent": "37.74px",
+      "errorAcross125Percent": "37.62px",
+      "allPinsAffected": true,
+      "conclusion": "Systematic Y-offset bug, not zoom-dependent"
+    },
+    "pinRenderingStatus": {
+      "domElementsCreated": 5,
+      "labelTextIssue": "Labels showing as 'undefined' - not affecting position, just visibility",
+      "screenPositionsRecorded": true,
+      "containerDimensionsAre": "398px × 298px (properly sized)"
+    }
+  },
+
+  "measurements": {
+    "at100PercentZoom": {
+      "containerSize": "398.008px × 298.506px",
+      "displayedImageSize": "398.008px × 298.506px",
+      "centerOffset": "0px × 0px",
+      "allPinsYError": "37.74px"
+    },
+    "at125PercentZoom": {
+      "containerSize": "398.008px × 298.506px",
+      "displayedImageSize": "497.51px × 373.1px",
+      "centerOffset": "49.8px × -0.3px",
+      "allPinsYError": "37.62px"
+    }
+  },
+
+  "nextSteps": [
+    "CRITICAL: Verify if the 37.7px offset is real or a calculation error in test verification",
+    "Check if there's a fixed/sticky header element that needs to be accounted for",
+    "Compare handlePlanTap() Y-coordinate conversion with renderPins() Y calculation",
+    "Test at 150% and 175% to confirm if offset remains constant",
+    "Once Y-bug is fixed, verify accuracy stays within ±2px across all zoom levels"
+  ],
+
+  "testDataLocation": "/Users/jaiveersingh/Documents/Claude/Projects/Site Visit Form/",
+  "reportFiles": [
+    "BUG_ANALYSIS_Y_OFFSET.md",
+    "STRESS_TEST_RESULTS_PHASE1.json"
+  ]
+}

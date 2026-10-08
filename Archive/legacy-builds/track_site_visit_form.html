@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Spare-it TRACK · Site Visit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js"></script>
+  <style>
+    :root {
+      --green: #34A853;
+      --green-dark: #278041;
+      --green-light: #E6F4EB;
+      --yellow: #FFD600;
+      --dark: #2A2A2A;
+      --bg: #F5F5F5;
+      --card: #FFFFFF;
+      --text-primary: #333333;
+      --text-muted: #757575;
+      --border: #E0E0E0;
+      --danger: #EE4547;
+      --radius: 16px;
+      --radius-sm: 10px;
+      --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html { height: 100%; -webkit-text-size-adjust: 100%; }
+
+    body {
+      font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      max-width: 430px;
+      margin: 0 auto;
+      min-height: 100dvh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .hdr {
+      background: var(--dark);
+      padding: 0 18px;
+      padding-top: max(14px, env(safe-area-inset-top));
+      padding-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 80;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+    }
+
+    .hdr-back {
+      background: rgba(255,255,255,0.12);
+      border: none;
+      color: #fff;
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-sm);
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s;
+      -webkit-appearance: none;
+    }
+
+    .hdr-back:active { background: rgba(255,255,255,0.25); }
+
+    .hdr-logo-text {
+      flex: 1;
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.5px;
+    }
+
+    .hdr-logo-text span { color: var(--green); }
+
+    .screen {
+      display: none;
+      padding: 16px 16px 120px;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    .screen.active { display: block; }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      line-height: 1.2;
+    }
+
+    h2 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    p {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--dark);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="email"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 12px;
+      font-family: inherit;
+      font-size: 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--card);
+      color: var(--text-primary);
+      transition: border-color 0.15s;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(52, 168, 83, 0.1);
+    }
+
+    .checkbox-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      background: var(--card);
+      transition: all 0.15s;
+    }
+
+    .checkbox-item:active {
+      background: var(--green-light);
+      border-color: var(--green);
+    }
+
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: var(--green);
+    }
+
+    .checkbox-item label {
+      flex: 1;
+      margin: 0;
+      cursor: pointer;
+      font-weight: 400;
+      text-transform: none;
+      font-size: 14px;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 14px 16px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.15s;
+      -webkit-appearance: none;
+      text-align: center;
+    }
+
+    .btn-primary {
+      background: var(--green);
+      color: #fff;
+    }
+
+    .btn-primary:active { background: var(--green-dark); }
+
+    .btn-secondary {
+      background: var(--bg);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:active { background: var(--border); }
+
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    .btn-danger:active { background: #d73739; }
+
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .card-sub {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .btn-icon {
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      border-radius: var(--radius-sm);
+      border: none;
+      cursor: pointer;
+      background: var(--bg);
+      transition: all 0.15s;
+    }
+
+    .btn-icon:active { background: var(--border); }
+
+    .btn-icon.danger {
+      background: rgba(238, 69, 71, 0.1);
+      color: var(--danger);
+    }
+
+    .file-input-wrapper {
+      position: relative;
+      overflow: hidden;
+      display: block;
+    }
+
+    .file-input-wrapper input[type="file"] {
+      position: absolute;
+      left: -9999px;
+    }
+
+    .file-input-label {
+      display: block;
+      padding: 16px;
+      text-align: center;
+      border: 2px dashed var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.15s;
+      background: var(--card);
+    }
+
+    .file-input-label:active {
+      background: var(--green-light);
+      border-color: var(--green);
+    }
+
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin: 16px 0;
+    }
+
+    .photo-item {
+      position: relative;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      aspect-ratio: 1;
+    }
+
+    .photo-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .photo-remove {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(238, 69, 71, 0.9);
+      color: #fff;
+      border: none;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .floor-plan-container {
+      position: relative;
+      width: 100%;
+      height: 400px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--card);
+      overflow: hidden;
+      margin: 16px 0;
+    }
+
+    .floor-plan-img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      transform-origin: center;
+    }
+
+    .pins-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .pin {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      background: var(--green);
+      border-radius: 50%;
+      cursor: grab;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 700;
+      font-size: 12px;
+      box-shadow: var(--shadow);
+      transform: translate(-50%, -50%);
+      border: 2px solid #fff;
+      transition: all 0.15s;
+    }
+
+    .pin:active {
+      cursor: grabbing;
+      box-shadow: 0 4px 12px rgba(52, 168, 83, 0.4);
+    }
+
+    .pin-label {
+      position: absolute;
+      bottom: -22px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--green);
+      color: #fff;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      white-space: nowrap;
+      font-weight: 600;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+
+    .empty-state h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .empty-state p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .progress-bar {
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--green);
+      transition: width 0.3s ease;
+    }
+
+    .bottom-actions {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      max-width: 430px;
+      margin: 0 auto;
+      padding: 12px 16px;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      z-index: 70;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 100;
+      padding: 16px;
+      overflow-y: auto;
+    }
+
+    .modal.active {
+      display: flex;
+      align-items: flex-end;
+    }
+
+    .modal-content {
+      background: var(--card);
+      border-radius: var(--radius) var(--radius) 0 0;
+      padding: 20px;
+      width: 100%;
+      max-width: 430px;
+      margin: auto;
+      animation: slideUp 0.3s ease-out;
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+
+    .modal-close {
+      float: right;
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: var(--text-muted);
+    }
+
+    .rotate-controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .rotate-btn {
+      padding: 10px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--card);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      flex: 1;
+      transition: all 0.15s;
+    }
+
+    .rotate-btn:active {
+      background: var(--green-light);
+      border-color: var(--green);
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <button class="hdr-back" id="headerBack" style="display:none">←</button>
+  <div class="hdr-logo-text">Spare<span>-it</span> TRACK</div>
+</div>
+
+<!-- ═════════════════════════════════════════ LANDING SCREEN ═════════════════════════════════════════ -->
+<div class="screen active" id="screenLanding">
+  <h1></h1>
+  <p>Complete this form to help us understand your waste setup.</p>
+
+  <div class="form-group">
+    <label>Client / Building Name</label>
+    <input type="text" id="clientName" placeholder="e.g., Acme Corp HQ">
+  </div>
+
+  <div class="form-group">
+    <label>Region / Location</label>
+    <input type="text" id="region" placeholder="e.g., New York, NY">
+  </div>
+
+  <div class="form-group">
+    <label>Building Address</label>
+    <textarea id="address" placeholder="Full address" style="resize:vertical; min-height:80px;"></textarea>
+  </div>
+
+  <div class="form-group">
+    <label>Total Square Footage</label>
+    <input type="number" id="squareFootage" placeholder="e.g., 50000">
+  </div>
+
+  <div class="form-group">
+    <label>Occupancy (Headcount)</label>
+    <input type="number" id="occupancy" placeholder="e.g., 500">
+  </div>
+
+  <div class="form-group">
+    <label>Floors in Building</label>
+    <input type="number" id="floorsInBuilding" placeholder="e.g., 5" min="1">
+  </div>
+
+  <div class="form-group">
+    <label>Waste Streams Present</label>
+    <div class="checkbox-group" id="streamsCheckboxes"></div>
+  </div>
+
+  <div class="form-group">
+    <label>Est. Number of Stations</label>
+    <input type="number" id="estStations" placeholder="e.g., 12">
+  </div>
+
+  <div class="form-group">
+    <label>Est. Number of Bins</label>
+    <input type="number" id="estBins" placeholder="e.g., 30">
+  </div>
+
+  <button class="btn btn-primary" id="btnBeginVision" style="width:100%; margin-top:20px;">
+    Begin VISION Setup →
+  </button>
+</div>
+
+<!-- ═════════════════════════════════════════ FLOORS SCREEN ═════════════════════════════════════════ -->
+<div class="screen" id="screenFloors">
+  <div class="progress-bar"><div class="progress-fill" style="width: 25%;"></div></div>
+  <h1>Floors</h1>
+  <p>Add the floors you'll audit in this building.</p>
+  <div id="floorsList"></div>
+  <button class="btn btn-secondary" id="btnAddFloor" style="width:100%; margin-top:20px;">
+    + Add Floor
+  </button>
+</div>
+
+<!-- ═════════════════════════════════════════ FLOOR DETAIL SCREEN ═════════════════════════════════════════ -->
+<div class="screen" id="screenFloorDetail">
+  <div class="progress-bar"><div class="progress-fill" style="width: 35%;"></div></div>
+  <h1 id="floorDetailTitle">Floor 1</h1>
+  <p>Upload floor plan and add station locations.</p>
+
+  <div id="floorPlanSection">
+    <label>Floor Plan</label>
+    <div class="file-input-wrapper">
+      <input type="file" id="floorPlanInput" accept="image/*">
+      <label for="floorPlanInput" class="file-input-label">
+        📷 Upload Floor Plan
+      </label>
+    </div>
+  </div>
+
+  <div id="floorPlanEditorSection" style="display:none;">
+    <div class="rotate-controls">
+      <button class="rotate-btn" id="btnRotateLeft">↻ Rotate Left</button>
+      <button class="rotate-btn" id="btnRotateRight">↺ Rotate Right</button>
+    </div>
+
+    <div class="floor-plan-container">
+      <img id="floorPlanImg" class="floor-plan-img" alt="Floor Plan">
+      <div class="pins-container" id="pinsContainer"></div>
+    </div>
+
+    <button class="btn btn-secondary" id="btnAddStationPin" style="width:100%; margin-top:12px;">
+      + Add Station
+    </button>
+  </div>
+
+  <div id="stationsForFloorList" style="margin-top:20px;"></div>
+
+  <button class="btn btn-primary" id="btnContinueToNextFloor" style="width:100%; margin-top:20px; display:none;">
+    Continue to Next Floor →
+  </button>
+</div>
+
+<!-- ═════════════════════════════════════════ BINS SCREEN ═════════════════════════════════════════ -->
+<div class="screen" id="screenBins">
+  <div class="progress-bar"><div class="progress-fill" style="width: 65%;"></div></div>
+  <h1 id="binsTitle">Station: Break Room</h1>
+  <p>Add bins for this station.</p>
+  <div id="binsList"></div>
+  <button class="btn btn-secondary" id="btnAddBin" style="width:100%; margin-top:20px;">
+    + Add Bin
+  </button>
+</div>
+
+<!-- ═════════════════════════════════════════ PHOTOS SCREEN ═════════════════════════════════════════ -->
+<div class="screen" id="screenPhotos">
+  <div class="progress-bar"><div class="progress-fill" style="width: 75%;"></div></div>
+  <h1 id="photosTitle">Photos: General Waste Bin</h1>
+  <p>Upload photos of the bin and any signage.</p>
+
+  <div class="file-input-wrapper">
+    <input type="file" id="photoInput" accept="image/*" multiple>
+    <label for="photoInput" class="file-input-label">
+      📸 Tap to take or select photos<br>
+      <small style="color: var(--text-muted);">Bin + Signage preferred</small>
+    </label>
+  </div>
+
+  <div class="photo-grid" id="photoGallery"></div>
+
+  <p style="margin-top:20px; font-size:12px; color:var(--text-muted);">
+    💡 Capture the bin from multiple angles and include any contamination signage.
+  </p>
+</div>
+
+<!-- ═════════════════════════════════════════ FINISH SCREEN ═════════════════════════════════════════ -->
+<div class="screen" id="screenFinish">
+  <div class="progress-bar"><div class="progress-fill" style="width: 100%;"></div></div>
+  <h1>Review & Export</h1>
+  <p>Your assessment is ready. Export and share with our team.</p>
+
+  <div class="card">
+    <div class="card-title">Assessment Summary</div>
+    <div style="margin-top: 12px; font-size: 13px; color: var(--text-muted); line-height: 1.6;">
+      <div>📍 <strong id="summaryFloors">0</strong> floors audited</div>
+      <div>🏢 <strong id="summaryStations">0</strong> stations</div>
+      <div>🗑️ <strong id="summaryBins">0</strong> bins</div>
+      <div>📷 <strong id="summaryPhotos">0</strong> photos captured</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Export Options</div>
+    <button class="btn btn-secondary" id="btnDownloadZip" style="width:100%; margin-top:12px;">
+      📦 Download Photos (ZIP)
+    </button>
+    <button class="btn btn-secondary" id="btnDownloadExcel" style="width:100%; margin-top:10px;">
+      📊 Download Data (Excel)
+    </button>
+  </div>
+
+  <div class="form-group" style="margin-top:20px;">
+    <label>Email Assessment To:</label>
+    <input type="email" id="emailTo" placeholder="team@spare-it.com">
+    <button class="btn btn-primary" id="btnSendEmail" style="width:100%; margin-top:10px;">
+      📧 Email to Spare-it Team
+    </button>
+    <p style="margin-top:10px; font-size:12px;">
+      💡 We'll review and follow up within 24 hours.
+    </p>
+  </div>
+
+  <button class="btn btn-secondary" id="btnStartOver" style="width:100%; margin-top:20px;">
+    Start New Assessment
+  </button>
+</div>
+
+<!-- ═════════════════════════════════════════ MODALS ═════════════════════════════════════════ -->
+
+<!-- Modal: Add/Edit Floor -->
+<div class="modal" id="modalFloor">
+  <div class="modal-content">
+    <button class="modal-close" onclick="closeModal('modalFloor')">×</button>
+    <h2 id="modalFloorTitle">Add Floor</h2>
+    <div class="form-group" style="margin-top:16px;">
+      <label>Floor Name / Number</label>
+      <input type="text" id="inputFloorName" placeholder="e.g., Floor 1, Basement, Rooftop">
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-secondary" onclick="closeModal('modalFloor')">Cancel</button>
+      <button class="btn btn-primary" id="btnConfirmFloor">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Add/Edit Station -->
+<div class="modal" id="modalStation">
+  <div class="modal-content">
+    <button class="modal-close" onclick="closeModal('modalStation')">×</button>
+    <h2 id="modalStationTitle">Add Station</h2>
+    <div class="form-group" style="margin-top:16px;">
+      <label>Station Name</label>
+      <input type="text" id="inputStationName" placeholder="e.g., Break Room, Kitchen, Bathroom">
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-secondary" onclick="closeModal('modalStation')">Cancel</button>
+      <button class="btn btn-primary" id="btnConfirmStation">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Add/Edit Bin -->
+<div class="modal" id="modalBin">
+  <div class="modal-content">
+    <button class="modal-close" onclick="closeModal('modalBin')">×</button>
+    <h2 id="modalBinTitle">Add Bin</h2>
+    <div class="form-group" style="margin-top:16px;">
+      <label>Waste Stream</label>
+      <select id="inputBinStream"></select>
+    </div>
+    <div class="form-group">
+      <label>Bin Size/Capacity</label>
+      <input type="text" id="inputBinSize" placeholder="e.g., 64L, 2 cubic yards">
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-secondary" onclick="closeModal('modalBin')">Cancel</button>
+      <button class="btn btn-primary" id="btnConfirmBin">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Confirm Pin Placement -->
+<div class="modal" id="modalConfirmPin">
+  <div class="modal-content">
+    <button class="modal-close" onclick="closePinModal()">×</button>
+    <h2>Confirm Station Position</h2>
+    <p style="margin-top:16px; margin-bottom:20px;">Is this the correct location for <strong id="pinStationName"></strong>?</p>
+    <div class="btn-group">
+      <button class="btn btn-secondary" onclick="cancelPinPlacement()">Move Again</button>
+      <button class="btn btn-primary" onclick="confirmPinPlacement()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const WASTE_STREAMS = ['General Waste', 'Recycling', 'Compost', 'Organic', 'Hazardous', 'E-Waste', 'Mixed Stream'];
+
+  let appState = {
+    clientName: '', region: '', address: '', squareFootage: '', occupancy: '', floorsInBuilding: '',
+    wasteStreams: [], estStations: '', estBins: '',
+    floors: [],
+    currentFloorIdx: 0, currentStationIdx: 0, currentBinIdx: 0,
+  };
+
+  let floorPlanState = {
+    rotation: 0,
+    pins: {},
+    draggingPin: null,
+    dragOffset: { x: 0, y: 0 }
+  };
+
+  function loadState() {
+    const saved = localStorage.getItem('trackFormState');
+    if (saved) {
+      try { appState = JSON.parse(saved); } catch (e) { console.error('Failed to load state:', e); }
+    }
+  }
+
+  function saveState() {
+    localStorage.setItem('trackFormState', JSON.stringify(appState));
+  }
+
+  function showScreen(screenId) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(screenId).classList.add('active');
+    updateHeaderBack();
+    window.scrollTo(0, 0);
+  }
+
+  function updateHeaderBack() {
+    const backBtn = document.getElementById('headerBack');
+    const activeScreen = document.querySelector('.screen.active').id;
+    backBtn.style.display = (activeScreen === 'screenLanding') ? 'none' : 'flex';
+  }
+
+  document.getElementById('headerBack').addEventListener('click', goBack);
+
+  function goBack() {
+    const activeScreen = document.querySelector('.screen.active').id;
+    switch (activeScreen) {
+      case 'screenFloors': showScreen('screenLanding'); break;
+      case 'screenFloorDetail': showScreen('screenFloors'); break;
+      case 'screenBins': showScreen('screenFloorDetail'); break;
+      case 'screenPhotos': showScreen('screenBins'); break;
+      case 'screenFinish': showScreen('screenBins'); break;
+    }
+  }
+
+  function openModal(modalId) {
+    document.getElementById(modalId).classList.add('active');
+  }
+
+  function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('active');
+  }
+
+  function closePinModal() {
+    floorPlanState.draggingPin = null;
+    closeModal('modalConfirmPin');
+  }
+
+  function cancelPinPlacement() {
+    floorPlanState.draggingPin = null;
+    closePinModal();
+  }
+
+  // ════════════════════════════════════════ LANDING ════════════════════════════════════════
+  function initLanding() {
+    const checksContainer = document.getElementById('streamsCheckboxes');
+    checksContainer.innerHTML = '';
+    WASTE_STREAMS.forEach(stream => {
+      const div = document.createElement('div');
+      div.className = 'checkbox-item';
+      div.innerHTML = `
+        <input type="checkbox" value="${stream}" id="stream_${stream}">
+        <label for="stream_${stream}">${stream}</label>
+      `;
+      checksContainer.appendChild(div);
+    });
+
+    document.getElementById('clientName').value = appState.clientName;
+    document.getElementById('region').value = appState.region;
+    document.getElementById('address').value = appState.address;
+    document.getElementById('squareFootage').value = appState.squareFootage;
+    document.getElementById('occupancy').value = appState.occupancy;
+    document.getElementById('floorsInBuilding').value = appState.floorsInBuilding;
+    document.getElementById('estStations').value = appState.estStations;
+    document.getElementById('estBins').value = appState.estBins;
+
+    appState.wasteStreams.forEach(stream => {
+      const checkbox = document.getElementById(`stream_${stream}`);
+      if (checkbox) checkbox.checked = true;
+    });
+
+    document.getElementById('btnBeginVision').addEventListener('click', beginVision);
+  }
+
+  function beginVision() {
+    appState.clientName = document.getElementById('clientName').value;
+    appState.region = document.getElementById('region').value;
+    appState.address = document.getElementById('address').value;
+    appState.squareFootage = document.getElementById('squareFootage').value;
+    appState.occupancy = document.getElementById('occupancy').value;
+    appState.floorsInBuilding = document.getElementById('floorsInBuilding').value;
+    appState.estStations = document.getElementById('estStations').value;
+    appState.estBins = document.getElementById('estBins').value;
+
+    appState.wasteStreams = [];
+    document.querySelectorAll('#streamsCheckboxes input[type="checkbox"]:checked').forEach(cb => {
+      appState.wasteStreams.push(cb.value);
+    });
+
+    if (!appState.clientName || appState.wasteStreams.length === 0) {
+      alert('Please fill in client name and select at least one waste stream.');
+      return;
+    }
+
+    saveState();
+    appState.floors = [];
+    appState.currentFloorIdx = 0;
+    saveState();
+    renderFloorsScreen();
+    showScreen('screenFloors');
+  }
+
+  // ════════════════════════════════════════ FLOORS ════════════════════════════════════════
+  function renderFloorsScreen() {
+    const list = document.getElementById('floorsList');
+    list.innerHTML = '';
+
+    if (appState.floors.length === 0) {
+      list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🏢</div><h3>No Floors Yet</h3><p>Start by adding the floors you'll audit.</p></div>`;
+    } else {
+      appState.floors.forEach((floor, idx) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="card-header">
+            <div>
+              <div class="card-title">${floor.name}</div>
+              <div class="card-sub">${floor.stations?.length || 0} stations</div>
+            </div>
+          </div>
+          <div class="card-actions">
+            <button class="btn btn-secondary" style="flex:1;" onclick="startFloorDetail(${idx})">View →</button>
+            <button class="btn-icon" onclick="editFloor(${idx})">✎</button>
+            <button class="btn-icon danger" onclick="deleteFloor(${idx})">🗑️</button>
+          </div>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    document.getElementById('btnAddFloor').onclick = () => {
+      document.getElementById('modalFloorTitle').textContent = 'Add Floor';
+      document.getElementById('inputFloorName').value = '';
+      document.getElementById('btnConfirmFloor').onclick = addFloor;
+      openModal('modalFloor');
+    };
+  }
+
+  function addFloor() {
+    const name = document.getElementById('inputFloorName').value.trim();
+    if (!name) { alert('Please enter a floor name.'); return; }
+    appState.floors.push({ id: Date.now(), name, stations: [], floorPlan: null, floorPlanRotation: 0, pins: {} });
+    saveState();
+    closeModal('modalFloor');
+    renderFloorsScreen();
+  }
+
+  function editFloor(idx) {
+    document.getElementById('modalFloorTitle').textContent = 'Edit Floor';
+    document.getElementById('inputFloorName').value = appState.floors[idx].name;
+    document.getElementById('btnConfirmFloor').onclick = () => {
+      const name = document.getElementById('inputFloorName').value.trim();
+      if (!name) { alert('Please enter a floor name.'); return; }
+      appState.floors[idx].name = name;
+      saveState();
+      closeModal('modalFloor');
+      renderFloorsScreen();
+      if (appState.currentFloorIdx === idx) {
+        document.getElementById('floorDetailTitle').textContent = name;
+      }
+    };
+    openModal('modalFloor');
+  }
+
+  function deleteFloor(idx) {
+    if (confirm('Delete this floor and all its data?')) {
+      appState.floors.splice(idx, 1);
+      saveState();
+      renderFloorsScreen();
+    }
+  }
+
+  function startFloorDetail(floorIdx) {
+    appState.currentFloorIdx = floorIdx;
+    saveState();
+    renderFloorDetailScreen();
+    showScreen('screenFloorDetail');
+  }
+
+  // ════════════════════════════════════════ FLOOR DETAIL (FLOOR PLAN) ════════════════════════════════════════
+  function renderFloorDetailScreen() {
+    const floor = appState.floors[appState.currentFloorIdx];
+    document.getElementById('floorDetailTitle').textContent = floor.name;
+
+    floorPlanState = {
+      rotation: floor.floorPlanRotation || 0,
+      pins: floor.pins || {},
+      draggingPin: null,
+      dragOffset: { x: 0, y: 0 }
+    };
+
+    if (floor.floorPlan) {
+      document.getElementById('floorPlanSection').style.display = 'none';
+      document.getElementById('floorPlanEditorSection').style.display = 'block';
+      const img = document.getElementById('floorPlanImg');
+      img.src = floor.floorPlan;
+      img.style.transform = `rotate(${floorPlanState.rotation}deg)`;
+      renderPins();
+    } else {
+      document.getElementById('floorPlanSection').style.display = 'block';
+      document.getElementById('floorPlanEditorSection').style.display = 'none';
+    }
+
+    document.getElementById('floorPlanInput').onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        floor.floorPlan = ev.target.result;
+        floorPlanState.rotation = 0;
+        floor.floorPlanRotation = 0;
+        floor.pins = {};
+        floorPlanState.pins = {};
+        saveState();
+        renderFloorDetailScreen();
+      };
+      reader.readAsDataURL(file);
+    };
+
+    document.getElementById('btnRotateLeft').onclick = () => {
+      floorPlanState.rotation = (floorPlanState.rotation - 90) % 360;
+      floor.floorPlanRotation = floorPlanState.rotation;
+      document.getElementById('floorPlanImg').style.transform = `rotate(${floorPlanState.rotation}deg)`;
+      saveState();
+    };
+
+    document.getElementById('btnRotateRight').onclick = () => {
+      floorPlanState.rotation = (floorPlanState.rotation + 90) % 360;
+      floor.floorPlanRotation = floorPlanState.rotation;
+      document.getElementById('floorPlanImg').style.transform = `rotate(${floorPlanState.rotation}deg)`;
+      saveState();
+    };
+
+    document.getElementById('btnAddStationPin').onclick = () => {
+      document.getElementById('modalStationTitle').textContent = 'Add Station';
+      document.getElementById('inputStationName').value = '';
+      document.getElementById('btnConfirmStation').onclick = addStationForFloor;
+      openModal('modalStation');
+    };
+
+    renderStationsForFloor();
+  }
+
+  function addStationForFloor() {
+    const name = document.getElementById('inputStationName').value.trim();
+    if (!name) { alert('Please enter a station name.'); return; }
+    const floor = appState.floors[appState.currentFloorIdx];
+    if (!floor.stations) floor.stations = [];
+    const stationId = Date.now();
+    floor.stations.push({ id: stationId, name, bins: [] });
+    floorPlanState.pins[stationId] = { x: 50, y: 50 }; // Default position
+    floor.pins = floorPlanState.pins;
+    saveState();
+    closeModal('modalStation');
+    renderFloorDetailScreen();
+  }
+
+  function renderStationsForFloor() {
+    const floor = appState.floors[appState.currentFloorIdx];
+    const list = document.getElementById('stationsForFloorList');
+    list.innerHTML = '';
+
+    if (!floor.stations || floor.stations.length === 0) {
+      list.innerHTML = `<p style="text-align:center; color:var(--text-muted); margin-top:20px;">No stations yet. Add one using the floor plan.</p>`;
+    } else {
+      floor.stations.forEach((station, idx) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="card-header">
+            <div>
+              <div class="card-title">${station.name}</div>
+              <div class="card-sub">${station.bins?.length || 0} bins</div>
+            </div>
+          </div>
+          <div class="card-actions">
+            <button class="btn btn-secondary" style="flex:1;" onclick="startStation(${idx})">Add Bins →</button>
+            <button class="btn-icon" onclick="editStation(${idx})">✎</button>
+            <button class="btn-icon danger" onclick="deleteStation(${idx})">🗑️</button>
+          </div>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    document.getElementById('btnContinueToNextFloor').style.display = (appState.currentFloorIdx < appState.floors.length - 1) ? 'block' : 'none';
+    if (appState.currentFloorIdx < appState.floors.length - 1) {
+      document.getElementById('btnContinueToNextFloor').onclick = () => {
+        appState.currentFloorIdx++;
+        saveState();
+        renderFloorDetailScreen();
+      };
+    }
+  }
+
+  function renderPins() {
+    const container = document.getElementById('pinsContainer');
+    container.innerHTML = '';
+    const floor = appState.floors[appState.currentFloorIdx];
+    const img = document.getElementById('floorPlanImg');
+
+    floor.stations?.forEach((station, idx) => {
+      const pin = floorPlanState.pins[station.id] || { x: 50, y: 50 };
+      const pinEl = document.createElement('div');
+      pinEl.className = 'pin';
+      pinEl.textContent = idx + 1;
+      pinEl.style.left = pin.x + '%';
+      pinEl.style.top = pin.y + '%';
+      pinEl.innerHTML = `${idx + 1}<div class="pin-label">${station.name}</div>`;
+
+      pinEl.addEventListener('mousedown', (e) => startDragPin(e, station.id, idx));
+      pinEl.addEventListener('touchstart', (e) => startDragPin(e, station.id, idx));
+
+      container.appendChild(pinEl);
+    });
+  }
+
+  function startDragPin(e, stationId, stationIdx) {
+    floorPlanState.draggingPin = stationId;
+    const floor = appState.floors[appState.currentFloorIdx];
+    const station = floor.stations.find(s => s.id === stationId);
+    document.getElementById('pinStationName').textContent = station.name;
+
+    const container = document.querySelector('.pins-container');
+    const rect = container.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    const pin = floorPlanState.pins[stationId] || { x: 50, y: 50 };
+    floorPlanState.dragOffset = {
+      x: (clientX - rect.left) / rect.width * 100 - pin.x,
+      y: (clientY - rect.top) / rect.height * 100 - pin.y
+    };
+
+    document.addEventListener('mousemove', dragPin);
+    document.addEventListener('touchmove', dragPin);
+    document.addEventListener('mouseup', stopDragPin);
+    document.addEventListener('touchend', stopDragPin);
+  }
+
+  function dragPin(e) {
+    if (!floorPlanState.draggingPin) return;
+    const container = document.querySelector('.pins-container');
+    const rect = container.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    const x = Math.max(0, Math.min(100, (clientX - rect.left) / rect.width * 100 - floorPlanState.dragOffset.x));
+    const y = Math.max(0, Math.min(100, (clientY - rect.top) / rect.height * 100 - floorPlanState.dragOffset.y));
+
+    floorPlanState.pins[floorPlanState.draggingPin] = { x, y };
+    renderPins();
+  }
+
+  function stopDragPin() {
+    if (!floorPlanState.draggingPin) return;
+    document.removeEventListener('mousemove', dragPin);
+    document.removeEventListener('touchmove', dragPin);
+    document.removeEventListener('mouseup', stopDragPin);
+    document.removeEventListener('touchend', stopDragPin);
+    openModal('modalConfirmPin');
+  }
+
+  function confirmPinPlacement() {
+    const floor = appState.floors[appState.currentFloorIdx];
+    floor.pins = floorPlanState.pins;
+    saveState();
+    closePinModal();
+    renderPins();
+  }
+
+  function editStation(idx) {
+    const floor = appState.floors[appState.currentFloorIdx];
+    document.getElementById('modalStationTitle').textContent = 'Edit Station';
+    document.getElementById('inputStationName').value = floor.stations[idx].name;
+    document.getElementById('btnConfirmStation').onclick = () => {
+      const name = document.getElementById('inputStationName').value.trim();
+      if (!name) { alert('Please enter a station name.'); return; }
+      floor.stations[idx].name = name;
+      saveState();
+      closeModal('modalStation');
+      renderFloorDetailScreen();
+    };
+    openModal('modalStation');
+  }
+
+  function deleteStation(idx) {
+    if (confirm('Delete this station and all its bins?')) {
+      const floor = appState.floors[appState.currentFloorIdx];
+      const stationId = floor.stations[idx].id;
+      delete floorPlanState.pins[stationId];
+      floor.stations.splice(idx, 1);
+      saveState();
+      renderFloorDetailScreen();
+    }
+  }
+
+  // ════════════════════════════════════════ BINS ════════════════════════════════════════
+  function startStation(stationIdx) {
+    appState.currentStationIdx = stationIdx;
+    appState.currentBinIdx = 0;
+    saveState();
+    renderBinsScreen();
+    showScreen('screenBins');
+  }
+
+  function renderBinsScreen() {
+    const floor = appState.floors[appState.currentFloorIdx];
+    const station = floor.stations[appState.currentStationIdx];
+    document.getElementById('binsTitle').textContent = `Station: ${station.name}`;
+
+    const list = document.getElementById('binsList');
+    list.innerHTML = '';
+
+    if (!station.bins || station.bins.length === 0) {
+      list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🗑️</div><h3>No Bins Yet</h3><p>Add the bins in this station.</p></div>`;
+    } else {
+      station.bins.forEach((bin, idx) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="card-header">
+            <div>
+              <div class="card-title">${bin.stream}</div>
+              <div class="card-sub">Size: ${bin.size}</div>
+            </div>
+          </div>
+          <div class="card-actions">
+            <button class="btn btn-secondary" style="flex:1;" onclick="startBin(${idx})">${bin.photos?.length || 0} photos →</button>
+            <button class="btn-icon" onclick="editBin(${idx})">✎</button>
+            <button class="btn-icon danger" onclick="deleteBin(${idx})">🗑️</button>
+          </div>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    const streamSelect = document.getElementById('inputBinStream');
+    streamSelect.innerHTML = '<option value="">Select stream...</option>';
+    appState.wasteStreams.forEach(stream => {
+      const option = document.createElement('option');
+      option.value = stream;
+      option.textContent = stream;
+      streamSelect.appendChild(option);
+    });
+
+    document.getElementById('btnAddBin').onclick = () => {
+      document.getElementById('modalBinTitle').textContent = 'Add Bin';
+      document.getElementById('inputBinSize').value = '';
+      document.getElementById('inputBinStream').value = '';
+      document.getElementById('btnConfirmBin').onclick = addBin;
+      openModal('modalBin');
+    };
+  }
+
+  function addBin() {
+    const stream = document.getElementById('inputBinStream').value.trim();
+    const size = document.getElementById('inputBinSize').value.trim();
+    if (!stream || !size) { alert('Please fill in all bin fields.'); return; }
+    const floor = appState.floors[appState.currentFloorIdx];
+    const station = floor.stations[appState.currentStationIdx];
+    if (!station.bins) station.bins = [];
+    station.bins.push({ id: Date.now(), stream, size, photos: [] });
+    saveState();
+    closeModal('modalBin');
+    renderBinsScreen();
+  }
+
+  function editBin(idx) {
+    const floor = appState.floors[appState.currentFloorIdx];
+    const station = floor.stations[appState.currentStationIdx];
+    const bin = station.bins[idx];
+    document.getElementById('modalBinTitle').textContent = 'Edit Bin';
+    document.getElementById('inputBinStream').value = bin.stream;
+    document.getElementById('inputBinSize').value = bin.size;
+    document.getElementById('btnConfirmBin').onclick = () => {
+      const stream = document.getElementById('inputBinStream').value.trim();
+      const size = document.getElementById('inputBinSize').value.trim();
+      if (!stream || !size) { alert('Please fill in all bin fields.'); return; }
+      bin.stream = stream;
+      bin.size = size;
+      saveState();
+      closeModal('modalBin');
+      renderBinsScreen();
+    };
+    openModal('modalBin');
+  }
+
+  function deleteBin(idx) {
+    if (confirm('Delete this bin and its photos?')) {
+      const floor = appState.floors[appState.currentFloorIdx];
+      const station = floor.stations[appState.currentStationIdx];
+      station.bins.splice(idx, 1);
+      saveState();
+      renderBinsScreen();
+    }
+  }
+
+  // ════════════════════════════════════════ PHOTOS ════════════════════════════════════════
+  function startBin(binIdx) {
+    appState.currentBinIdx = binIdx;
+    saveState();
+    renderPhotosScreen();
+    showScreen('screenPhotos');
+  }
+
+  function renderPhotosScreen() {
+    const floor = appState.floors[appState.currentFloorIdx];
+    const station = floor.stations[appState.currentStationIdx];
+    const bin = station.bins[appState.currentBinIdx];
+    document.getElementById('photosTitle').textContent = `Photos: ${bin.stream} Bin`;
+
+    document.getElementById('photoInput').onchange = (e) => {
+      Array.from(e.target.files).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          bin.photos.push({ id: Date.now(), data: ev.target.result });
+          saveState();
+          renderPhotoGallery();
+        };
+        reader.readAsDataURL(file);
+      });
+    };
+
+    renderPhotoGallery();
+  }
+
+  function renderPhotoGallery() {
+    const floor = appState.floors[appState.currentFloorIdx];
+    const station = floor.stations[appState.currentStationIdx];
+    const bin = station.bins[appState.currentBinIdx];
+    const gallery = document.getElementById('photoGallery');
+    gallery.innerHTML = '';
+
+    if (bin.photos && bin.photos.length > 0) {
+      bin.photos.forEach(photo => {
+        const item = document.createElement('div');
+        item.className = 'photo-item';
+        item.innerHTML = `
+          <img src="${photo.data}" alt="photo">
+          <button class="photo-remove" onclick="removePhoto(${photo.id})">×</button>
+        `;
+        gallery.appendChild(item);
+      });
+    }
+  }
+
+  function removePhoto(photoId) {
+    const floor = appState.floors[appState.currentFloorIdx];
+    const station = floor.stations[appState.currentStationIdx];
+    const bin = station.bins[appState.currentBinIdx];
+    bin.photos = bin.photos.filter(p => p.id !== photoId);
+    saveState();
+    renderPhotoGallery();
+  }
+
+  // ════════════════════════════════════════ FINISH ════════════════════════════════════════
+  function renderFinishScreen() {
+    let totalFloors = appState.floors.length;
+    let totalStations = 0, totalBins = 0, totalPhotos = 0;
+
+    appState.floors.forEach(floor => {
+      floor.stations?.forEach(station => {
+        totalStations++;
+        station.bins?.forEach(bin => {
+          totalBins++;
+          totalPhotos += bin.photos?.length || 0;
+        });
+      });
+    });
+
+    document.getElementById('summaryFloors').textContent = totalFloors;
+    document.getElementById('summaryStations').textContent = totalStations;
+    document.getElementById('summaryBins').textContent = totalBins;
+    document.getElementById('summaryPhotos').textContent = totalPhotos;
+
+    document.getElementById('btnDownloadZip').onclick = downloadZip;
+    document.getElementById('btnDownloadExcel').onclick = downloadExcel;
+    document.getElementById('btnSendEmail').onclick = sendEmail;
+    document.getElementById('btnStartOver').onclick = startOver;
+  }
+
+  async function downloadZip() {
+    const zip = new JSZip();
+    appState.floors.forEach(floor => {
+      floor.stations?.forEach(station => {
+        station.bins?.forEach(bin => {
+          bin.photos?.forEach((photo, photoIdx) => {
+            const folderPath = `${floor.name}/${station.name}/${bin.stream}/`;
+            const base64 = photo.data.split(',')[1];
+            zip.folder(folderPath).file(`Photo_${photoIdx + 1}.jpg`, base64, { base64: true });
+          });
+        });
+      });
+    });
+
+    zip.generateAsync({ type: 'blob' }).then(content => {
+      const url = URL.createObjectURL(content);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${appState.clientName}_Photos.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  function downloadExcel() {
+    const wsData = [['Building', 'Region', 'Floor', 'Station', 'Waste Stream', 'Bin Size', 'Photos']];
+
+    appState.floors.forEach(floor => {
+      floor.stations?.forEach(station => {
+        station.bins?.forEach(bin => {
+          wsData.push([appState.clientName, appState.region, floor.name, station.name, bin.stream, bin.size, bin.photos?.length || 0]);
+        });
+      });
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 18 }, { wch: 15 }, { wch: 10 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Audit Data');
+    XLSX.writeFile(wb, `${appState.clientName}_Data.xlsx`);
+  }
+
+  function sendEmail() {
+    const email = document.getElementById('emailTo').value.trim();
+    if (!email) { alert('Please enter an email address.'); return; }
+    alert(`Email functionality would send to: ${email}\n\nThis is a demo. Files are downloaded locally.`);
+  }
+
+  function startOver() {
+    if (confirm('Clear all data and start a new assessment?')) {
+      localStorage.removeItem('trackFormState');
+      location.reload();
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    loadState();
+    initLanding();
+  });
+</script>
+
+</body>
+</html>

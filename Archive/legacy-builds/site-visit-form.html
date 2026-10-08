@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Site Visit Form</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 10px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 24px;
+            color: #222;
+        }
+
+        .form-section {
+            margin-bottom: 24px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .form-section:last-child {
+            border-bottom: none;
+        }
+
+        h2 {
+            font-size: 18px;
+            margin-bottom: 16px;
+            color: #444;
+            background: #f9f9f9;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border-left: 4px solid #007AFF;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: #555;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #007AFF;
+            box-shadow: 0 0 0 2px rgba(0,122,255,0.1);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        button {
+            padding: 10px 16px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #007AFF;
+            color: white;
+            flex: 1;
+            min-width: 120px;
+        }
+
+        .btn-primary:hover {
+            background: #0051D5;
+        }
+
+        .btn-primary:active {
+            background: #003DA8;
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+            flex: 1;
+            min-width: 100px;
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .btn-danger {
+            background: #FF3B30;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #CC2F26;
+        }
+
+        .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .photo-item {
+            position: relative;
+            width: 100%;
+            padding-bottom: 100%;
+            background: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .photo-item img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .photo-remove {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .entry-card {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .entry-card h3 {
+            font-size: 15px;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .entry-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        .entry-actions button {
+            flex: 1;
+            padding: 8px;
+            font-size: 12px;
+        }
+
+        .action-buttons {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 12px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 8px;
+            z-index: 100;
+        }
+
+        .action-buttons button {
+            flex: 1;
+        }
+
+        .main-content {
+            margin-bottom: 80px;
+        }
+
+        .success-message {
+            background: #D4EDDA;
+            border: 1px solid #C3E6CB;
+            color: #155724;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .success-message.show {
+            display: block;
+        }
+
+        .error-message {
+            background: #F8D7DA;
+            border: 1px solid #F5C6CB;
+            color: #721C24;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 12px;
+            }
+
+            h1 {
+                font-size: 20px;
+                margin-bottom: 16px;
+            }
+
+            h2 {
+                font-size: 16px;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-content">
+        <div class="container">
+            <h1>Site Visit Form</h1>
+
+            <div class="success-message" id="successMsg"></div>
+            <div class="error-message" id="errorMsg"></div>
+
+            <!-- Building & Floor Info -->
+            <div class="form-section">
+                <h2>Visit Details</h2>
+                <div class="form-group">
+                    <label for="building">Building Name *</label>
+                    <input type="text" id="building" placeholder="e.g., Starbucks 5th Ave" required>
+                </div>
+                <div class="form-group">
+                    <label for="floor">Floor Number *</label>
+                    <input type="number" id="floor" placeholder="e.g., 1, 2, G, B1" required>
+                </div>
+            </div>
+
+            <!-- Stations Section -->
+            <div class="form-section">
+                <h2>Stations & Bins</h2>
+                <div id="stationsList"></div>
+                <button class="btn-primary" onclick="addStation()">+ Add Station</button>
+            </div>
+
+            <!-- Gateways Section -->
+            <div class="form-section">
+                <h2>Gateways (Optional)</h2>
+                <div id="gatewaysList"></div>
+                <button class="btn-primary" onclick="addGateway()">+ Add Gateway</button>
+            </div>
+
+            <!-- Displays Section -->
+            <div class="form-section">
+                <h2>Displays (Optional)</h2>
+                <div id="displaysList"></div>
+                <button class="btn-primary" onclick="addDisplay()">+ Add Display</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-buttons">
+        <button class="btn-secondary" onclick="clearForm()">Clear</button>
+        <button class="btn-primary" onclick="exportData()">Export & Download</button>
+    </div>
+
+    <!-- Hidden file input for camera -->
+    <input type="file" id="cameraInput" accept="image/*" capture="environment">
+
+    <script>
+        let formData = {
+            stations: [],
+            gateways: [],
+            displays: []
+        };
+
+        // Format timestamp as YYYY-MM-DD_HH-mm-ss
+        function getTimestamp() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            return `${year}-${month}-${day}_${hours}-${minutes}-${seconds}`;
+        }
+
+        // Generate unique ID
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+
+        // Add Station
+        function addStation() {
+            const station = {
+                id: generateId(),
+                name: '',
+                binId: '',
+                wasteType: '',
+                fillLevel: '',
+                notes: '',
+                photos: []
+            };
+            formData.stations.push(station);
+            renderStations();
+        }
+
+        // Add Gateway
+        function addGateway() {
+            const gateway = {
+                id: generateId(),
+                name: '',
+                notes: '',
+                photos: []
+            };
+            formData.gateways.push(gateway);
+            renderGateways();
+        }
+
+        // Add Display
+        function addDisplay() {
+            const display = {
+                id: generateId(),
+                name: '',
+                notes: '',
+                photos: []
+            };
+            formData.displays.push(display);
+            renderDisplays();
+        }
+
+        // Render Stations
+        function renderStations() {
+            const container = document.getElementById('stationsList');
+            container.innerHTML = formData.stations.map((station, index) => `
+                <div class="entry-card">
+                    <h3>Station ${index + 1}</h3>
+                    <div class="form-group">
+                        <label>Station Name/ID</label>
+                        <input type="text" placeholder="e.g., STATION-01"
+                            value="${station.name}"
+                            onchange="formData.stations[${index}].name = this.value">
+                    </div>
+                    <div class="form-group">
+                        <label>Bin ID</label>
+                        <input type="text" placeholder="e.g., A, B, BIN-01"
+                            value="${station.binId}"
+                            onchange="formData.stations[${index}].binId = this.value">
+                    </div>
+                    <div class="form-group">
+                        <label>Waste Type</label>
+                        <select onchange="formData.stations[${index}].wasteType = this.value">
+                            <option value="">Select type...</option>
+                            <option value="General Waste" ${station.wasteType === 'General Waste' ? 'selected' : ''}>General Waste</option>
+                            <option value="Recycling" ${station.wasteType === 'Recycling' ? 'selected' : ''}>Recycling</option>
+                            <option value="Compost" ${station.wasteType === 'Compost' ? 'selected' : ''}>Compost</option>
+                            <option value="Mixed" ${station.wasteType === 'Mixed' ? 'selected' : ''}>Mixed</option>
+                            <option value="Other" ${station.wasteType === 'Other' ? 'selected' : ''}>Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Fill Level (%)</label>
+                        <input type="number" min="0" max="100" placeholder="0-100"
+                            value="${station.fillLevel}"
+                            onchange="formData.stations[${index}].fillLevel = this.value">
+                    </div>
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <textarea placeholder="Add observations..."
+                            onchange="formData.stations[${index}].notes = this.value">${station.notes}</textarea>
+                    </div>
+                    <div class="button-group">
+                        <button class="btn-secondary" onclick="capturePhoto('station', ${index})">📷 Take Photo</button>
+                        <button class="btn-danger" onclick="removeStation(${index})">Remove</button>
+                    </div>
+                    ${renderPhotos('station', index)}
+                </div>
+            `).join('');
+        }
+
+        // Render Gateways
+        function renderGateways() {
+            const container = document.getElementById('gatewaysList');
+            container.innerHTML = formData.gateways.map((gateway, index) => `
+                <div class="entry-card">
+                    <h3>Gateway ${index + 1}</h3>
+                    <div class="form-group">
+                        <label>Gateway ID/Name</label>
+                        <input type="text" placeholder="e.g., GW-01"
+                            value="${gateway.name}"
+                            onchange="formData.gateways[${index}].name = this.value">
+                    </div>
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <textarea placeholder="Add observations..."
+                            onchange="formData.gateways[${index}].notes = this.value">${gateway.notes}</textarea>
+                    </div>
+                    <div class="button-group">
+                        <button class="btn-secondary" onclick="capturePhoto('gateway', ${index})">📷 Take Photo</button>
+                        <button class="btn-danger" onclick="removeGateway(${index})">Remove</button>
+                    </div>
+                    ${renderPhotos('gateway', index)}
+                </div>
+            `).join('');
+        }
+
+        // Render Displays
+        function renderDisplays() {
+            const container = document.getElementById('displaysList');
+            container.innerHTML = formData.displays.map((display, index) => `
+                <div class="entry-card">
+                    <h3>Display ${index + 1}</h3>
+                    <div class="form-group">
+                        <label>Display ID/Name</label>
+                        <input type="text" placeholder="e.g., DISP-01"
+                            value="${display.name}"
+                            onchange="formData.displays[${index}].name = this.value">
+                    </div>
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <textarea placeholder="Add observations..."
+                            onchange="formData.displays[${index}].notes = this.value">${display.notes}</textarea>
+                    </div>
+                    <div class="button-group">
+                        <button class="btn-secondary" onclick="capturePhoto('display', ${index})">📷 Take Photo</button>
+                        <button class="btn-danger" onclick="removeDisplay(${index})">Remove</button>
+                    </div>
+                    ${renderPhotos('display', index)}
+                </div>
+            `).join('');
+        }
+
+        // Render Photos Grid
+        function renderPhotos(type, index) {
+            const photos = type === 'station' ? formData.stations[index].photos :
+                          type === 'gateway' ? formData.gateways[index].photos :
+                          formData.displays[index].photos;
+
+            if (!photos || photos.length === 0) return '';
+
+            return `
+                <div class="photo-grid">
+                    ${photos.map((photo, photoIndex) => `
+                        <div class="photo-item">
+                            <img src="${photo.data}" alt="Photo">
+                            <button class="photo-remove" onclick="removePhoto('${type}', ${index}, ${photoIndex})">×</button>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // Current capture context
+        let currentCapture = null;
+
+        // Capture Photo
+        function capturePhoto(type, index) {
+            currentCapture = { type, index };
+            const input = document.getElementById('cameraInput');
+            input.click();
+        }
+
+        // Handle Photo Capture
+        document.getElementById('cameraInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const photoData = event.target.result;
+
+                if (currentCapture.type === 'station') {
+                    formData.stations[currentCapture.index].photos.push({
+                        data: photoData,
+                        timestamp: getTimestamp()
+                    });
+                    renderStations();
+                } else if (currentCapture.type === 'gateway') {
+                    formData.gateways[currentCapture.index].photos.push({
+                        data: photoData,
+                        timestamp: getTimestamp()
+                    });
+                    renderGateways();
+                } else if (currentCapture.type === 'display') {
+                    formData.displays[currentCapture.index].photos.push({
+                        data: photoData,
+                        timestamp: getTimestamp()
+                    });
+                    renderDisplays();
+                }
+            };
+            reader.readAsDataURL(file);
+            this.value = ''; // Reset input
+        });
+
+        // Remove Photo
+        function removePhoto(type, index, photoIndex) {
+            if (type === 'station') {
+                formData.stations[index].photos.splice(photoIndex, 1);
+                renderStations();
+            } else if (type === 'gateway') {
+                formData.gateways[index].photos.splice(photoIndex, 1);
+                renderGateways();
+            } else if (type === 'display') {
+                formData.displays[index].photos.splice(photoIndex, 1);
+                renderDisplays();
+            }
+        }
+
+        // Remove Station
+        function removeStation(index) {
+            if (confirm('Remove this station?')) {
+                formData.stations.splice(index, 1);
+                renderStations();
+            }
+        }
+
+        // Remove Gateway
+        function removeGateway(index) {
+            if (confirm('Remove this gateway?')) {
+                formData.gateways.splice(index, 1);
+                renderGateways();
+            }
+        }
+
+        // Remove Display
+        function removeDisplay(index) {
+            if (confirm('Remove this display?')) {
+                formData.displays.splice(index, 1);
+                renderDisplays();
+            }
+        }
+
+        // Validate Form
+        function validateForm() {
+            const building = document.getElementById('building').value.trim();
+            const floor = document.getElementById('floor').value.trim();
+
+            if (!building) {
+                showError('Building name is required');
+                return false;
+            }
+            if (!floor) {
+                showError('Floor number is required');
+                return false;
+            }
+            if (formData.stations.length === 0) {
+                showError('At least one station is required');
+                return false;
+            }
+
+            return true;
+        }
+
+        // Show Messages
+        function showSuccess(msg) {
+            const el = document.getElementById('successMsg');
+            el.textContent = msg;
+            el.classList.add('show');
+            setTimeout(() => el.classList.remove('show'), 4000);
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('errorMsg');
+            el.textContent = msg;
+            el.classList.add('show');
+            setTimeout(() => el.classList.remove('show'), 4000);
+        }
+
+        // Export Data
+        function exportData() {
+            if (!validateForm()) return;
+
+            const building = document.getElementById('building').value.trim();
+            const floor = document.getElementById('floor').value.trim();
+
+            // Create folder structure and files
+            const files = [];
+
+            // Export Stations
+            formData.stations.forEach((station, sIndex) => {
+                const timestamp = station.photos.length > 0 ? station.photos[0].timestamp : getTimestamp();
+                const filename = `${station.name}_${station.binId}_${timestamp}`;
+                const folderPath = `Site Visits/${building}/${floor}/`;
+
+                // Export photos
+                station.photos.forEach((photo, pIndex) => {
+                    files.push({
+                        path: `${folderPath}${filename}.jpg`,
+                        content: photo.data,
+                        type: 'image'
+                    });
+                });
+
+                // Export station JSON
+                const stationJson = {
+                    type: 'station',
+                    name: station.name,
+                    binId: station.binId,
+                    wasteType: station.wasteType,
+                    fillLevel: station.fillLevel,
+                    notes: station.notes,
+                    photoCount: station.photos.length,
+                    timestamp: timestamp
+                };
+                files.push({
+                    path: `${folderPath}${filename}.json`,
+                    content: JSON.stringify(stationJson, null, 2),
+                    type: 'json'
+                });
+            });
+
+            // Export Gateways
+            formData.gateways.forEach((gateway, gIndex) => {
+                const timestamp = gateway.photos.length > 0 ? gateway.photos[0].timestamp : getTimestamp();
+                const filename = `${gateway.name}_${timestamp}`;
+                const folderPath = `Site Visits/${building}/${floor}/`;
+
+                gateway.photos.forEach((photo, pIndex) => {
+                    files.push({
+                        path: `${folderPath}${filename}.jpg`,
+                        content: photo.data,
+                        type: 'image'
+                    });
+                });
+
+                const gatewayJson = {
+                    type: 'gateway',
+                    name: gateway.name,
+                    notes: gateway.notes,
+                    photoCount: gateway.photos.length,
+                    timestamp: timestamp
+                };
+                files.push({
+                    path: `${folderPath}${filename}.json`,
+                    content: JSON.stringify(gatewayJson, null, 2),
+                    type: 'json'
+                });
+            });
+
+            // Export Displays
+            formData.displays.forEach((display, dIndex) => {
+                const timestamp = display.photos.length > 0 ? display.photos[0].timestamp : getTimestamp();
+                const filename = `${display.name}_${timestamp}`;
+                const folderPath = `Site Visits/${building}/${floor}/`;
+
+                display.photos.forEach((photo, pIndex) => {
+                    files.push({
+                        path: `${folderPath}${filename}.jpg`,
+                        content: photo.data,
+                        type: 'image'
+                    });
+                });
+
+                const displayJson = {
+                    type: 'display',
+                    name: display.name,
+                    notes: display.notes,
+                    photoCount: display.photos.length,
+                    timestamp: timestamp
+                };
+                files.push({
+                    path: `${folderPath}${filename}.json`,
+                    content: JSON.stringify(displayJson, null, 2),
+                    type: 'json'
+                });
+            });
+
+            // Generate CSV
+            const csvRows = [];
+            csvRows.push('Type,Name,ID,WasteType,FillLevel,Notes,PhotoCount,Timestamp');
+
+            formData.stations.forEach(station => {
+                const timestamp = station.photos.length > 0 ? station.photos[0].timestamp : getTimestamp();
+                csvRows.push(`Station,"${station.name}","${station.binId}","${station.wasteType}","${station.fillLevel}","${station.notes.replace(/"/g, '""')}",${station.photos.length},"${timestamp}"`);
+            });
+
+            formData.gateways.forEach(gateway => {
+                const timestamp = gateway.photos.length > 0 ? gateway.photos[0].timestamp : getTimestamp();
+                csvRows.push(`Gateway,"${gateway.name}","","","","${gateway.notes.replace(/"/g, '""')}",${gateway.photos.length},"${timestamp}"`);
+            });
+
+            formData.displays.forEach(display => {
+                const timestamp = display.photos.length > 0 ? display.photos[0].timestamp : getTimestamp();
+                csvRows.push(`Display,"${display.name}","","","","${display.notes.replace(/"/g, '""')}",${display.photos.length},"${timestamp}"`);
+            });
+
+            const csvContent = csvRows.join('\n');
+            const csvFilename = `Site Visits/${building}/${floor}/sitevisit_summary_${getTimestamp()}.csv`;
+            files.push({
+                path: csvFilename,
+                content: csvContent,
+                type: 'csv'
+            });
+
+            // Download as JSON manifest (user can implement their own download logic)
+            const manifest = {
+                building: building,
+                floor: floor,
+                timestamp: getTimestamp(),
+                files: files.map(f => ({
+                    path: f.path,
+                    type: f.type,
+                    hasContent: true
+                }))
+            };
+
+            // Create a simple ZIP or download individual files
+            downloadFiles(files, `${building}_Floor${floor}_${getTimestamp()}`);
+            showSuccess('Data exported successfully!');
+        }
+
+        // Download Files (simplified - creates individual files or manifest)
+        function downloadFiles(files, zipName) {
+            // For simplicity, we'll download a manifest JSON that shows the structure
+            const manifest = {
+                folderStructure: `Site Visits/${document.getElementById('building').value}/${document.getElementById('floor').value}/`,
+                files: files.map(f => f.path),
+                instructions: 'Create the folder structure and add the corresponding files to each location'
+            };
+
+            const dataStr = JSON.stringify(manifest, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `site_visit_manifest_${getTimestamp()}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+
+            // Also download CSV
+            const csvFile = files.find(f => f.path.includes('.csv'));
+            if (csvFile) {
+                const csvBlob = new Blob([csvFile.content], { type: 'text/csv' });
+                const csvUrl = URL.createObjectURL(csvBlob);
+                const csvLink = document.createElement('a');
+                csvLink.href = csvUrl;
+                csvLink.download = csvFile.path.split('/').pop();
+                csvLink.click();
+                URL.revokeObjectURL(csvUrl);
+            }
+        }
+
+        // Clear Form
+        function clearForm() {
+            if (confirm('Clear all data? This cannot be undone.')) {
+                document.getElementById('building').value = '';
+                document.getElementById('floor').value = '';
+                formData = { stations: [], gateways: [], displays: [] };
+                renderStations();
+                renderGateways();
+                renderDisplays();
+                showSuccess('Form cleared');
+            }
+        }
+
+        // Initialize
+        renderStations();
+        renderGateways();
+        renderDisplays();
+    </script>
+</body>
+</html>

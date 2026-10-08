@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>App Diagnostic - Spare-it Site Visit Form</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .header {
+      background: #2A2A2A;
+      color: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .status { margin: 20px 0; padding: 15px; border-radius: 8px; }
+    .pass { background: #E6F4EB; color: #278041; border: 1px solid #34A853; }
+    .fail { background: #FFEBEE; color: #c62828; border: 1px solid #EE4547; }
+    .warn { background: #FFF3E0; color: #E65100; border: 1px solid #FF9800; }
+    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+    th { background: #2A2A2A; color: white; }
+    tr:hover { background: #f9f9f9; }
+    .error { color: #c62828; font-family: monospace; font-size: 12px; }
+    button { padding: 10px 20px; margin: 10px 5px 10px 0; cursor: pointer; border: none; border-radius: 4px; background: #34A853; color: white; }
+    button:hover { background: #278041; }
+    .log { background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; margin-top: 20px; max-height: 400px; overflow-y: auto; }
+    .log-item { padding: 5px; font-family: monospace; font-size: 12px; border-bottom: 1px solid #eee; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🔍 Spare-it App Diagnostic</h1>
+    <p>Tests the actual app file for functionality, HTML elements, and JavaScript functions.</p>
+  </div>
+
+  <div>
+    <button onclick="loadAppFile()">📂 Load App File (Spare-it_site_visit_form.html)</button>
+    <button onclick="clearResults()">🗑️ Clear Results</button>
+  </div>
+
+  <div id="status" class="status warn" style="display:none;"></div>
+  <div id="results"></div>
+  <div class="log" id="log" style="display:none;">
+    <div style="font-weight: bold; margin-bottom: 10px;">Diagnostic Log:</div>
+    <div id="logContent"></div>
+  </div>
+
+  <script>
+    let appContent = null;
+    const logs = [];
+
+    function log(msg) {
+      logs.push(msg);
+      console.log(msg);
+      updateLog();
+    }
+
+    function updateLog() {
+      const logDiv = document.getElementById('logContent');
+      logDiv.innerHTML = logs.map(l => `<div class="log-item">${l}</div>`).join('');
+      document.getElementById('log').style.display = 'block';
+    }
+
+    async function loadAppFile() {
+      try {
+        log('🔄 Loading app file...');
+        const response = await fetch('Spare-it_site_visit_form.html');
+        if (!response.ok) throw new Error(`Failed to load: ${response.status}`);
+
+        appContent = await response.text();
+        log(`✓ Loaded ${appContent.length} bytes`);
+
+        runDiagnostics();
+      } catch (e) {
+        log(`✗ Error loading file: ${e.message}`);
+        showStatus(`Failed to load app file: ${e.message}`, 'fail');
+      }
+    }
+
+    function runDiagnostics() {
+      log('🧪 Starting diagnostics...');
+
+      const results = {
+        htmlElements: checkHTMLElements(),
+        htmlAttributes: checkHTMLAttributes(),
+        cssRules: checkCSSRules(),
+        jsFunctions: checkJSFunctions()
+      };
+
+      displayResults(results);
+      calculateScore(results);
+    }
+
+    function checkHTMLElements() {
+      log('📋 Checking HTML elements...');
+      const elements = [
+        'inp-building', 'inp-address', 'inp-date', 'inp-auditor', 'inp-contact-notes',
+        'btn-start-visit', 'add-context-photo-btn',
+        'modal-validation', 'modal-stream-select', 'modal-link-station',
+        'context-photo-file', 'context-photo-camera'
+      ];
+
+      const results = [];
+      elements.forEach(id => {
+        const found = appContent.includes(`id="${id}"`);
+        results.push({
+          name: `Element #${id}`,
+          status: found ? 'pass' : 'fail',
+          detail: found ? 'Found in HTML' : 'Not found'
+        });
+        log(`  ${found ? '✓' : '✗'} #${id}`);
+      });
+
+      return results;
+    }
+
+    function checkHTMLAttributes() {
+      log('🏷️ Checking onclick attributes...');
+      const buttons = [
+        { id: 'btn-start-visit', fn: 'startVisit' },
+        { selector: 'openStreamSelectHome', fn: 'openStreamSelectHome' }
+      ];
+
+      const results = [];
+
+      // Check Begin Site Visit button
+      const hasBtnAttr = appContent.includes('onclick="startVisit()"');
+      results.push({
+        name: 'Begin Site Visit - onclick attribute',
+        status: hasBtnAttr ? 'pass' : 'fail',
+        detail: hasBtnAttr ? 'Has onclick="startVisit()"' : 'Missing onclick'
+      });
+      log(`  ${hasBtnAttr ? '✓' : '✗'} Begin Site Visit button`);
+
+      // Check Select Streams button
+      const hasStreamBtn = appContent.includes('onclick="openStreamSelectHome()"');
+      results.push({
+        name: 'Select Streams - onclick attribute',
+        status: hasStreamBtn ? 'pass' : 'fail',
+        detail: hasStreamBtn ? 'Has onclick="openStreamSelectHome()"' : 'Missing onclick'
+      });
+      log(`  ${hasStreamBtn ? '✓' : '✗'} Select Streams button`);
+
+      // Check photo buttons
+      const hasPhotoUpload = appContent.includes('onclick="promptContextPhotoUpload()"');
+      results.push({
+        name: 'Photo Upload - onclick attribute',
+        status: hasPhotoUpload ? 'pass' : 'fail',
+        detail: hasPhotoUpload ? 'Present' : 'Missing'
+      });
+      log(`  ${hasPhotoUpload ? '✓' : '✗'} Photo Upload button`);
+
+      const hasPhotoFile = appContent.includes('onclick="promptContextPhotoFile()"');
+      results.push({
+        name: 'Photo File - onclick attribute',
+        status: hasPhotoFile ? 'pass' : 'fail',
+        detail: hasPhotoFile ? 'Present' : 'Missing'
+      });
+      log(`  ${hasPhotoFile ? '✓' : '✗'} Photo File button`);
+
+      return results;
+    }
+
+    function checkCSSRules() {
+      log('🎨 Checking CSS rules...');
+
+      const cssRules = [
+        { rule: 'min-height: 48px', desc: 'Button touch target' },
+        { rule: 'touch-action: manipulation', desc: 'Touch optimization' },
+        { rule: '.plan-pin.edit-mode', desc: 'Pin edit mode styling' },
+        { rule: 'input[type=checkbox]', desc: 'Checkbox styling' },
+        { rule: 'accent-color: var(--green)', desc: 'Checkbox color' }
+      ];
+
+      const results = [];
+      cssRules.forEach(css => {
+        const found = appContent.includes(css.rule);
+        results.push({
+          name: css.desc,
+          status: found ? 'pass' : 'fail',
+          detail: css.rule
+        });
+        log(`  ${found ? '✓' : '✗'} ${css.desc}`);
+      });
+
+      return results;
+    }
+
+    function checkJSFunctions() {
+      log('⚙️ Checking JavaScript functions...');
+
+      const functions = [
+        'function openStreamSelectHome',
+        'function startVisit',
+        'function promptContextPhotoUpload',
+        'function promptContextPhotoFile',
+        'function openModal',
+        'function closeModal',
+        'function persist',
+        'function handleContextPhotoUpload',
+        'function attachPinListeners',
+        'function handlePinPress'
+      ];
+
+      const results = [];
+      functions.forEach(fn => {
+        const found = appContent.includes(fn);
+        const name = fn.replace('function ', '').replace(/\(.*/, '') + '()';
+        results.push({
+          name: name,
+          status: found ? 'pass' : 'fail',
+          detail: found ? 'Defined' : 'Not found'
+        });
+        log(`  ${found ? '✓' : '✗'} ${name}`);
+      });
+
+      return results;
+    }
+
+    function displayResults(results) {
+      let html = '';
+
+      Object.keys(results).forEach(category => {
+        const categoryResults = results[category];
+        const passed = categoryResults.filter(r => r.status === 'pass').length;
+        const total = categoryResults.length;
+
+        html += `<h3>${getCategoryName(category)} (${passed}/${total})</h3>`;
+        html += '<table><thead><tr><th>Check</th><th>Status</th><th>Detail</th></tr></thead><tbody>';
+
+        categoryResults.forEach(result => {
+          const statusIcon = result.status === 'pass' ? '✓' : '✗';
+          const statusClass = result.status === 'pass' ? 'pass' : 'fail';
+          html += `
+            <tr>
+              <td>${result.name}</td>
+              <td><span class="status ${statusClass}" style="padding: 5px 10px; border-radius: 4px; display: inline-block;">${statusIcon}</span></td>
+              <td>${result.detail}</td>
+            </tr>
+          `;
+        });
+
+        html += '</tbody></table>';
+      });
+
+      document.getElementById('results').innerHTML = html;
+    }
+
+    function getCategoryName(cat) {
+      const names = {
+        htmlElements: '📋 HTML Elements',
+        htmlAttributes: '🏷️ Button Attributes',
+        cssRules: '🎨 CSS Rules',
+        jsFunction: '⚙️ JavaScript Functions'
+      };
+      return names[cat] || cat;
+    }
+
+    function calculateScore(results) {
+      let total = 0, passed = 0;
+
+      Object.values(results).forEach(categoryResults => {
+        categoryResults.forEach(result => {
+          total++;
+          if (result.status === 'pass') passed++;
+        });
+      });
+
+      const percentage = Math.round((passed / total) * 100);
+      const statusDiv = document.getElementById('status');
+      statusDiv.style.display = 'block';
+
+      if (percentage === 100) {
+        statusDiv.className = 'status pass';
+        statusDiv.innerHTML = `<strong>✓ All Checks Passed (${percentage}%)</strong><br>App file integrity verified. All required elements, attributes, CSS, and functions present.`;
+      } else if (percentage >= 80) {
+        statusDiv.className = 'status warn';
+        statusDiv.innerHTML = `<strong>⚠️ Minor Issues Found (${percentage}%)</strong><br>${passed}/${total} checks passed. Review failures above.`;
+      } else {
+        statusDiv.className = 'status fail';
+        statusDiv.innerHTML = `<strong>✗ Critical Issues Found (${percentage}%)</strong><br>Only ${passed}/${total} checks passed. Review all failures above.`;
+      }
+
+      log(`📊 Final Score: ${percentage}% (${passed}/${total} checks)`);
+    }
+
+    function clearResults() {
+      document.getElementById('results').innerHTML = '';
+      document.getElementById('status').style.display = 'none';
+      document.getElementById('log').style.display = 'none';
+      logs.length = 0;
+      appContent = null;
+    }
+
+    log('Ready. Click "Load App File" to run diagnostics.');
+  </script>
+</body>
+</html>
