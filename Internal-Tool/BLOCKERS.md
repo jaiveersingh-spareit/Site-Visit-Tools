@@ -776,3 +776,34 @@ behave as expected without creating duplicate Drive files.
 - **Fix:** overflow-x hidden, scrollLeft/scrollTop reset on open and render, header row wraps (checkbox, name, size buttons stay in view).
 - **Floor plan:** plan container now 62vh tall with 12px side gutters so the page can be scrolled by touching the margins. Values are tunable.
 - **To test on device:** create station A then B — tick streams without "Add More Bins"; scroll the page around the plan; place a pin and confirm it lands where tapped.
+
+## 09 — Stream colours linked to platform sorting-rule colours
+**Status:** DONE in code 9 Oct 2026 — needs eyeball check on device
+- Hex values sampled from the platform's Sorting Rules stream tiles (Mixed Recycling #6096B4, Trash #595A5C, Organics #DF6D40, Paper and Cardboard #84BC51, Cardboard #3B86C3, Glass #24431A, E-Waste #181717, Food Donation #C642A4, Coffee Pods Grounds #6A503B, Sink #14377E, Hazardous #FFFF61, Soft Plastics #CCCCCC).
+- App stream names map to the platform stream (Compost→Organics, Recycling→Mixed Recycling, Biohazard→Hazardous, Food Share→Food Donation, Plastics/Metals/Cartons→Mixed Recycling). Unknown streams are neutral grey.
+- Pale Hazardous/Soft Plastics use a darker shade for text only (unreadable on white otherwise).
+- Note: the Site Visit Workflow deck pin key (Trash black, Recycle blue, Compost green…) is a separate PIN key and was not used for stream colours.
+
+## 10 — Floor plan saved to Drive + pin check in Sheet
+**Status:** DONE in code 9 Oct 2026 — **needs new Code.gs deployed**, then on-device test
+- Before: the floor plan image lived only in this browser's localStorage (never in Drive).
+- Now: original plan uploaded once; annotated plan (all pins drawn) re-uploaded whenever pins are added/moved/removed. Files: `<Building>_F<n>_FloorPlan_original.jpg` / `_annotated.jpg` in the building's Drive folder (old copy is trashed, not hard-deleted).
+- Stations tab: new `planLink` column; pin position stays in `x`,`y` (% of plan width/height). Floors tab: both links, pinsOnImage, stationsInSheet, pinnedInSheet and a `check` column (OK / CHECK).
+- Failed uploads retry every 45 s and when back online.
+
+## 11 — Station modal: bin count per stream
+**Status:** DONE in code 9 Oct 2026 — needs on-device test
+- Each stream has a − / + stepper; every bin gets its own size and optional accessories; new bin copies the previous one in that stream. Running total shown at the top. Max 12 per stream.
+- Removed the separate "Add More Bins" modal and the placeholder-bin model it relied on.
+
+## 12 — Station creation → Drive sync review (data-loss risks)
+**Fixed now (9 Oct):**
+- Floor-data sync failure was never retried until the next edit → now retried every 45 s and on reconnect.
+- Apps Script writes were not serialised → all POSTs now take a script lock.
+- Floor plan existed only on the phone → now in Drive (entry 10).
+**Still open (recommended next):**
+1. Floor plans (base64) live in localStorage (~5 MB quota) alongside all station data — several floors can trigger "Not saved". Move plans to IndexedDB like photos.
+2. Sheet sync is replace-per-floor: a stale tab / cleared storage / new device syncing an empty or partial floor would overwrite good rows. Add a server guard (refuse if incoming rows drop sharply) and a history tab.
+3. No visible "all saved to Drive ✓ / n pending" status per floor on the floor screen.
+4. No automatic backup: add a one-tap "Download backup (JSON)" per floor/building.
+5. Shared token ("123") and Web App URL are in the page source — fine for field testing, rotate before wider use.

@@ -20,12 +20,13 @@
 const SHEET_SCHEMA_V2 = {
   'Instructions': ['Site Visit Sync — How This Sheet Works'],
   'Building List': ['Building Name', 'UUID', 'Address', 'Hauler', 'Auditor', 'Streams', 'Drive Folder ID'],
-  'Stations': ['floorId', 'stationId', 'letter', 'stationName', 'floor', 'stream', 'occurrence', 'scale', 'accessory', 'accessory2', 'binId', 'bin', 'x', 'y', 'notes', 'lastUpdated'],
+  'Stations': ['floorId', 'stationId', 'letter', 'stationName', 'floor', 'stream', 'occurrence', 'scale', 'accessory', 'accessory2', 'binId', 'bin', 'x', 'y', 'notes', 'lastUpdated', 'planLink'],
   'Gateways': ['floorId', 'gatewayId', 'label', 'location', 'tagId', 'x', 'y', 'notes', 'lastUpdated'],
   'Displays': ['floorId', 'displayId', 'label', 'location', 'tagId', 'x', 'y', 'notes', 'lastUpdated'],
   'Photos': ['stationId', 'photoType', 'driveFileId', 'shareableLink', 'timestamp', 'photoId'],
+  'Floors': ['floorId', 'floor', 'building', 'planOriginalLink', 'planAnnotatedLink', 'pinsOnImage', 'stationsInSheet', 'pinnedInSheet', 'check', 'lastUpdated'],
 };
-const SHEET_TAB_ORDER = ['Instructions', 'Building List', 'Stations', 'Gateways', 'Displays', 'Photos'];
+const SHEET_TAB_ORDER = ['Instructions', 'Building List', 'Stations', 'Gateways', 'Displays', 'Photos', 'Floors'];
 
 const INSTRUCTIONS_TEXT = [
   ['📋 Site Visit Sync — How This Sheet Works'],
@@ -209,6 +210,19 @@ function doGet(e) {
 //   driveFolderId: '...'  // where photos for this project live
 // }
 function doPost(e) {
+  // 9 Oct 2026: serialise all writes. Two overlapping POSTs (photo + floor
+  // data, or two retries) used to read-modify-write the same sheet ranges at
+  // the same time; the later writer could silently drop the earlier one's rows.
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(25000)) return jsonResponse_({ error: 'server busy — retry' });
+  try {
+    return doPost_(e);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function doPost_(e) {
   let body;
   try {
     body = JSON.parse(e.postData.contents);
@@ -219,11 +233,15 @@ function doPost(e) {
   if (!checkToken_(body.token)) {
     return jsonResponse_({ error: 'invalid token' }, 401);
   }
+  if (body.action === 'floorPlan') {
+    return handleFloorPlan_(body);
+  }
   if (!body.floorId || !Array.isArray(body.stations)) {
     return jsonResponse_({ error: 'floorId and stations[] are required' }, 400);
   }
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  ensureColumns_(ss.getSheetByName('Stations'), ['planLink']); // self-heal older sheets
   writeSheetRows_(ss.getSheetByName('Stations'), body.floorId, body.stations);
   if (Array.isArray(body.gateways)) writeSheetRows_(ss.getSheetByName('Gateways'), body.floorId, body.gateways);
   if (Array.isArray(body.displays)) writeSheetRows_(ss.getSheetByName('Displays'), body.floorId, body.displays);
@@ -433,4 +451,87 @@ function jsonResponse_(obj, code) {
   // so callers should check the `error` field rather than the status.
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+
+// ── Floor plan -> Drive + Floors tab ─────────────────────────────────────
+// Saves the floor plan image (kind 'original') or the plan with pins drawn on
+// it (kind 'annotated') into the building's Drive folder and records the link
+// in the Floors tab, together with a reconciliation of pins-on-image vs
+// station rows in the Stations tab so a mismatch is visible at a glance.
+function handleFloorPlan_(body) {
+  if (!body.floorId || !body.base64) return jsonResponse_({ error: 'floorId and base64 are required' });
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const buildingName = body.buildingName || 'Untitled Building';
+  const folder = getOrCreateBuildingFolder_(body.driveFolderId, buildingName);
+  const kind = body.kind === 'original' ? 'original' : 'annotated';
+  const fileName = [buildingName, 'F' + body.floorNumber, 'FloorPlan', kind].join('_') + '.jpg';
+
+  // Replace (trash, not hard-delete) any earlier copy with the same name.
+  const old = folder.getFilesByName(fileName);
+  while (old.hasNext()) old.next().setTrashed(true);
+  const blob = Utilities.newBlob(Utilities.base64Decode(body.base64), body.mimeType || 'image/jpeg', fileName);
+  const file = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  const link = file.getUrl();
+
+  // Reconcile against the Stations tab.
+  const stSheet = ss.getSheetByName('Stations');
+  const data = stSheet.getDataRange().getValues();
+  const h = data[0];
+  const fCol = h.indexOf('floorId'), sCol = h.indexOf('stationId'), xCol = h.indexOf('x'), yCol = h.indexOf('y');
+  const stationIds = {}, pinnedIds = {};
+  data.slice(1).forEach(r => {
+    if (r[fCol] !== body.floorId) return;
+    stationIds[r[sCol]] = true;
+    if (r[xCol] !== '' && r[yCol] !== '' && r[xCol] !== null && r[yCol] !== null) pinnedIds[r[sCol]] = true;
+  });
+  const stationsInSheet = Object.keys(stationIds).length;
+  const pinnedInSheet = Object.keys(pinnedIds).length;
+
+  const floors = getOrCreateFloorsSheet_(ss);
+  const fh = floors.getRange(1, 1, 1, floors.getLastColumn()).getValues()[0];
+  const fdata = floors.getDataRange().getValues();
+  let rowIdx = -1;
+  for (let i = 1; i < fdata.length; i++) if (fdata[i][fh.indexOf('floorId')] === body.floorId) { rowIdx = i; break; }
+  const row = rowIdx === -1 ? new Array(fh.length).fill('') : fdata[rowIdx].slice();
+  const set = (name, v) => { const c2 = fh.indexOf(name); if (c2 !== -1) row[c2] = v; };
+  set('floorId', body.floorId); set('floor', body.floorNumber); set('building', buildingName);
+  if (kind === 'original') set('planOriginalLink', link);
+  let check = '';
+  if (kind === 'annotated') {
+    set('planAnnotatedLink', link);
+    set('pinsOnImage', body.pinCount);
+    set('stationsInSheet', stationsInSheet);
+    set('pinnedInSheet', pinnedInSheet);
+    check = (Number(body.pinCount) === pinnedInSheet && Number(body.stationCount) === stationsInSheet) ? 'OK' : 'CHECK';
+    set('check', check);
+  }
+  set('lastUpdated', new Date().toISOString());
+  if (rowIdx === -1) floors.appendRow(row);
+  else floors.getRange(rowIdx + 1, 1, 1, fh.length).setValues([row]);
+
+  upsertBuildingListRow_(ss.getSheetByName('Building List'), buildingName, folder.getId(), body.building || {});
+  return jsonResponse_({ ok: true, link, kind, check, pinsOnImage: body.pinCount, stationsInSheet, pinnedInSheet });
+}
+
+// Finds/creates the Floors tab and adds any missing header columns, so an
+// older sheet needs no manual migration.
+function getOrCreateFloorsSheet_(ss) {
+  let sheet = ss.getSheetByName('Floors');
+  if (!sheet) sheet = ss.insertSheet('Floors');
+  const want = SHEET_SCHEMA_V2['Floors'];
+  const have = sheet.getLastRow() > 0 ? sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0] : [];
+  want.forEach(name => {
+    if (have.indexOf(name) === -1) { have.push(name); sheet.getRange(1, have.length).setValue(name); }
+  });
+  sheet.setFrozenRows(1);
+  return sheet;
+}
+
+// Adds any missing header columns to the right of the existing ones.
+function ensureColumns_(sheet, names) {
+  if (!sheet) return;
+  const have = sheet.getLastRow() > 0 ? sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0] : [];
+  names.forEach(n => { if (have.indexOf(n) === -1) { have.push(n); sheet.getRange(1, have.length).setValue(n); } });
 }

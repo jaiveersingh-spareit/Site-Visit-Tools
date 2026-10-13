@@ -1089,7 +1089,7 @@
   <div class="modal-sheet">
     <div class="modal-handle"></div>
     <div class="modal-title">Create Station <span id="modal-station-letter" style="font-weight:700;color:var(--primary);">—</span></div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:16px;padding:0 16px;">Select scale sizes for each waste stream in this station.</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:16px;padding:0 16px;">Use + to add each bin at this station (any number per stream), then pick a size for each bin.</div>
 
     <div style="padding:0 16px;margin-bottom:12px;">
       <div style="display:flex;gap:8px;align-items:flex-end;">
@@ -1116,30 +1116,15 @@
       </div>
     </div>
 
+ <div id="station-bins-summary" style="padding:0 16px 10px;"></div>
+
     <div id="station-bins-scroll" style="max-height:60dvh;overflow-y:auto;overflow-x:hidden;padding:0 16px;">
       <div id="station-bins-container"></div>
-    </div>
-
-    <div style="padding:16px;">
-      <button class="btn btn-outline btn-sm" style="width:100%;margin-bottom:12px;" onclick="openAddMoreBinsModal()">+ Add More Bins</button>
     </div>
 
     <div class="modal-actions">
       <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-station')">Cancel</button>
       <button class="btn btn-primary" id="create-station-btn" style="flex:2" onclick="confirmStationCreation()">Create Station</button>
-    </div>
-  </div>
-</div>
-
-<!-- Add More Bins to Station -->
-<div class="modal-overlay" id="modal-add-more-bins">
-  <div class="modal-sheet">
-    <div class="modal-handle"></div>
-    <div class="modal-title">Add More Bins</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:16px;">Select a waste stream to duplicate with your preferred scale and accessories.</div>
-    <div id="more-bins-stream-list" style="max-height:50dvh;overflow-y:auto;"></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-add-more-bins')">Cancel</button>
     </div>
   </div>
 </div>
@@ -1662,6 +1647,7 @@ function collectRetryablePhotos_(){
 }
 async function retryFailedPhotoSyncs(){
   if (!SYNC_ENABLED || isOffline) return;
+  try { retryFloorSyncs(); } catch (e) { console.warn('[RETRY] floor sync retry failed:', e); }
   const queue = collectRetryablePhotos_();
   if (!queue.length) return;
   for (let i = 0; i < queue.length; i += RETRY_BATCH_SIZE) {
@@ -1844,7 +1830,7 @@ function flattenFloorForSync(floor){
       stationRows.push({
         stationId: st.id, letter: st.letter, stationName: st.name || '', floor: floor.number,
         stream: '', occurrence: '', scale: '', accessory: '', accessory2: '',
-        binId: '', bin: '', x: st.x, y: st.y, notes: st.notes || '',
+        binId: '', bin: '', x: st.x, y: st.y, notes: st.notes || '', planLink: floor.planAnnotatedLink || '',
       });
       return;
     }
@@ -1864,7 +1850,7 @@ function flattenFloorForSync(floor){
         stream: bin.stream, occurrence, scale: bin.scale,
         accessory: accessories[0] || '', accessory2: accessories[1] || '',
         binId: baseBinId || (buildingCode + stationIdentifier + shortBin),
-        bin: shortBin, x: st.x, y: st.y, notes: st.notes || '',
+        bin: shortBin, x: st.x, y: st.y, notes: st.notes || '', planLink: floor.planAnnotatedLink || '',
       });
     });
   });
@@ -1939,10 +1925,88 @@ function syncFloorDataToBackend(floorId, opts){
       renderDriveFolderStatus();
       persist();
     }
+    // Floor data is in the sheet now — safe to (re)upload the annotated plan so
+    // the Floors tab can reconcile pin count vs station rows.
+    syncFloorPlanToDrive(floorId);
   })
   .catch(err => {
     floorDataSyncInFlight[floorId] = false;
     logSyncEvent('Floor ' + floor.number + ' data sync error: ' + err, 'error');
+  });
+}
+
+// ── FLOOR PLAN -> DRIVE (9 Oct 2026) ─────────────────────────────────────
+// The floor plan image itself only ever lived in this browser's localStorage
+// (floor.planDataUrl). It is now also saved to the building's Drive folder:
+//   • <Building>_F<n>_FloorPlan_original.jpg  — the uploaded plan, once
+//   • <Building>_F<n>_FloorPlan_annotated.jpg — plan with every station/gateway/
+//     display pin drawn on it, re-saved whenever pins are added/moved/removed
+// The Floors sheet tab records both links plus a pin-vs-station check.
+const floorPlanSyncInFlight = {};
+const floorPlanSyncAgain = {};
+function planOriginalKey_(floor){
+  const u = floor.planDataUrl || '';
+  return hashString_(u.length + ':' + u.slice(0, 300) + u.slice(-300));
+}
+function planAnnotatedKey_(floor){
+  const pts = a => (a || []).map(o => [o.letter || o.label || '', o.x, o.y]);
+  return hashString_(JSON.stringify([planOriginalKey_(floor), pts(floor.stations), pts(floor.gateways), pts(floor.displays)]));
+}
+function countPinnedStations_(floor){
+  return (floor.stations || []).filter(st => st.x !== null && st.x !== undefined && st.y !== null && st.y !== undefined).length;
+}
+function postFloorPlan_(floor, kind, dataUrl){
+  return fetch(SYNC_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({
+      token: SYNC_TOKEN, action: 'floorPlan', kind,
+      floorId: floor.id, floorNumber: floor.number,
+      buildingName: S.building, driveFolderId: SYNC_PHOTOS_FOLDER_ID,
+      base64: (dataUrl.split(',')[1] || ''), mimeType: 'image/jpeg',
+      pinCount: countPinnedStations_(floor), stationCount: (floor.stations || []).length,
+      building: { address: S.address, hauler: S.hauler, auditor: S.auditor, streams: (S.selectedStreams || []).map(o => o.stream || o).join(',') },
+    }),
+  }).then(r => r.json());
+}
+async function syncFloorPlanToDrive(floorId){
+  const floor = (S.floors || []).find(f => f.id === floorId);
+  if (!SYNC_ENABLED || !floor || !floor.planDataUrl || isOffline) return;
+  if (floorPlanSyncInFlight[floorId]) { floorPlanSyncAgain[floorId] = true; return; }
+  floorPlanSyncInFlight[floorId] = true;
+  try {
+    const origKey = planOriginalKey_(floor);
+    if (floor.planOriginalSynced !== origKey) {
+      const res = await postFloorPlan_(floor, 'original', floor.planDataUrl);
+      if (!res || res.error) throw new Error((res && res.error) || 'original upload failed');
+      floor.planOriginalSynced = origKey; floor.planOriginalLink = res.link || '';
+      logSyncEvent('Floor ' + floor.number + ' plan saved to Drive.', 'success');
+      persist();
+    }
+    const annKey = planAnnotatedKey_(floor);
+    if (floor.planAnnotatedSynced !== annKey) {
+      const annotated = await new Promise(resolve => renderFloorPlanWithPins(floor, resolve));
+      if (!annotated) throw new Error('could not render annotated plan');
+      const res = await postFloorPlan_(floor, 'annotated', annotated);
+      if (!res || res.error) throw new Error((res && res.error) || 'annotated upload failed');
+      floor.planAnnotatedSynced = annKey; floor.planAnnotatedLink = res.link || '';
+      logSyncEvent('Floor ' + floor.number + ' annotated plan saved — ' + countPinnedStations_(floor) + ' station pin(s); sheet check: ' + (res.check || 'n/a') + '.', res.check === 'OK' ? 'success' : 'info');
+      persist(); // planLink now differs -> one more floor-data sync writes the link into the Stations rows
+    }
+  } catch (err) {
+    logSyncEvent('Floor ' + floor.number + ' plan upload failed (will retry): ' + err, 'error');
+  } finally {
+    floorPlanSyncInFlight[floorId] = false;
+    if (floorPlanSyncAgain[floorId]) { floorPlanSyncAgain[floorId] = false; syncFloorPlanToDrive(floorId); }
+  }
+}
+// Called from the 45s timer / 'online' event: re-push anything that failed or
+// was captured offline. Both checks are cheap no-ops when nothing changed.
+function retryFloorSyncs(){
+  if (!SYNC_ENABLED || isOffline) return;
+  (S.floors || []).forEach(f => {
+    syncFloorDataToBackend(f.id); // hash-guarded: only sends if rows changed since last success
+    if (f.planDataUrl && (f.planOriginalSynced !== planOriginalKey_(f) || f.planAnnotatedSynced !== planAnnotatedKey_(f))) syncFloorPlanToDrive(f.id);
   });
 }
 
@@ -2740,7 +2804,7 @@ function renderBinSelections(){
     const st=gSt();
 
     html+=`<div style="background:var(--card);border:2px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px;">
-      <div style="font-weight:600;font-size:14px;margin-bottom:16px;color:${STREAM_COLORS[stream]||'var(--dark)'}">${stream}</div>`;
+      <div style="font-weight:600;font-size:14px;margin-bottom:16px;color:${streamTextCol(stream)}">${stream}</div>`;
 
     scales.forEach((scale,scaleIdx)=>{
       const occurrence=countBinOccurrences(st,stream);
@@ -3750,8 +3814,10 @@ function handlePlanUpload(e){
     // Resize image before saving (max 1200×600px)
     resizeAndSaveImage(ev.target.result, (resizedDataUrl) => {
       f.planDataUrl = resizedDataUrl;
+      f.planOriginalSynced = null; f.planAnnotatedSynced = null; // new plan image -> re-upload both
       persist();
       renderFloorDetail();
+      syncFloorPlanToDrive(f.id);
     });
   };
   reader.readAsDataURL(file);
@@ -5059,21 +5125,7 @@ function selectStation(){
 
   // Initialize bins array with FLAT STRUCTURE
   resetStationCreationPhoto();
-  stationCreationBins = [];
-  if(S.selectedStreams && Array.isArray(S.selectedStreams)){
-    S.selectedStreams.forEach(streamObj => {
-      const stream = streamObj.stream || streamObj;
-      ['Small', 'Medium', 'Large'].forEach((scaleName) => {
-        stationCreationBins.push({
-          stream: stream,
-          scale: scaleName,
-          selected: false, // none pre-selected — matches openAddStation() and the isStreamIncluded fix; previously this pre-checked every waste stream with Small the instant a pin was placed via the 'tap plan first' flow
-          accessories: [],
-          photos: []
-        });
-      });
-    });
-  }
+  stationCreationBins = []; // 9 Oct 2026: no placeholder bins any more — bins exist only once added with the + stepper
 
   console.log('[SELECT STATION] Initialized stationCreationBins. Showing modal-station...');
   renderStationBinsUI();
@@ -5539,21 +5591,7 @@ function openAddStation(preservePinCoordinates = false){
   // Initialize bins array - FLAT STRUCTURE with all sizes
   // Each stream gets Small/Medium/Large options (none pre-selected)
   resetStationCreationPhoto();
-  stationCreationBins = [];
-  if(S.selectedStreams && Array.isArray(S.selectedStreams)){
-    S.selectedStreams.forEach(streamObj => {
-      const stream = streamObj.stream || streamObj;
-      ['Small', 'Medium', 'Large'].forEach(scaleName => {
-        stationCreationBins.push({
-          stream: stream,
-          scale: scaleName,
-          selected: false,
-          accessories: [],
-          photos: []
-        });
-      });
-    });
-  }
+  stationCreationBins = []; // 9 Oct 2026: no placeholder bins any more — bins exist only once added with the + stepper
 
   // Show floor view FIRST (before alert)
   showS('s-floor');
@@ -5632,296 +5670,143 @@ function duplicateStation(stationId){
 // ── NEW STATION CREATION UI ──
 // ── NEW STATION CREATION UI - FLAT BINS ──
 // ── REDESIGNED STATION BINS UI - GROUPED BY STREAM ──
+// ── STATION CREATION: BIN COUNT PER STREAM (9 Oct 2026) ──
+// Each stream row has a − / + stepper for how many bins of that stream the
+// station has. Every bin gets its own size (and optional accessories), so any
+// number of extra bins is added in one place — this replaces the old
+// separate "Add More Bins" modal. stationCreationBins holds ONLY real bins
+// (no placeholders); occurrence numbers are assigned in array order per
+// stream at creation time (see confirmStationCreation).
+const MAX_BINS_PER_STREAM = 12;
+const STATION_ACCESSORIES = ['Button', 'LOKSAK Bag', 'Bottom Plate', 'Top Plate', 'Strap'];
+
+function streamNameAt_(streamIdx){
+  const o = (S.selectedStreams || [])[streamIdx];
+  return o ? (o.stream || o) : null;
+}
+
 function renderStationBinsUI(){
   const container = document.getElementById('station-bins-container');
   if(!container){
     console.error('[RENDER BINS UI] station-bins-container not found!');
     return;
   }
-
-  // Preserve scroll position of parent scrollable div
-  const scrollParent = container.closest('div[style*="overflow-y"]');
+  const scrollParent = document.getElementById('station-bins-scroll') || container.closest('div[style*="overflow-y"]');
   const scrollPosition = scrollParent ? scrollParent.scrollTop : 0;
-  // Bug fix (8 Oct 2026): this container used to be able to scroll sideways
-  // (overflow-y:auto implies overflow-x:auto) and kept its sideways offset
-  // between stations — on the 2nd station the stream checkboxes sat off-screen
-  // to the left, so streams could not be ticked at all.
-  if(scrollParent) scrollParent.scrollLeft = 0;
-  console.log('[RENDER BINS UI] Preserving scroll position:', scrollPosition);
+  if(scrollParent) scrollParent.scrollLeft = 0; // never keep a sideways offset (8 Oct 2026 fix)
 
-  const accessories = ['Button', 'LOKSAK Bag', 'Bottom Plate', 'Top Plate', 'Strap'];
   let html = '';
-
-  // Group streams from stationCreationBins
   if(!S.selectedStreams || S.selectedStreams.length === 0){
     html = '<div style="text-align:center;color:var(--muted);padding:20px;"><p>⚠️ No streams selected. Please select waste streams before creating a station.</p></div>';
   } else {
-    // Iterate through selected streams (not bins)
     S.selectedStreams.forEach((streamObj, streamIdx) => {
       const stream = streamObj.stream || streamObj;
+      const col = streamCol(stream), txt = streamTextCol(stream);
+      const idxs = [];
+      stationCreationBins.forEach((b, i) => { if(b.stream === stream) idxs.push(i); });
+      const count = idxs.length;
+      const stepBtn = (label, delta, disabled) => `<button type="button" onclick="adjustStreamBinCount(${streamIdx}, ${delta})" ${disabled ? 'disabled' : ''} style="width:38px;height:38px;border-radius:50%;border:1.5px solid ${disabled ? 'var(--border)' : col};background:var(--bg);color:${disabled ? 'var(--muted)' : txt};font-size:20px;font-weight:700;line-height:1;cursor:${disabled ? 'not-allowed' : 'pointer'};opacity:${disabled ? '0.4' : '1'};">${label}</button>`;
 
-      // Find all bins for this stream from stationCreationBins
-      const streamBins = stationCreationBins.filter(b => b.stream === stream);
-      const isStreamIncluded = streamBins.some(b => b.selected); // Stream is included only if a size is actually selected — every stream gets 3 placeholder (Small/Medium/Large) entries at init, so checking length alone made every checkbox render pre-checked
-
-      html += `<div style="background:var(--card);border:0.5px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px;">
-        <!-- Stream Header Row: Checkbox + Name + Size Buttons -->
-        <div style="display:flex;align-items:center;gap:10px 12px;flex-wrap:wrap;margin-bottom:12px;">
-          <!-- Checkbox -->
-          <input type="checkbox" data-stream="${stream}" style="cursor:pointer;width:18px;height:18px;accent-color:var(--green);"
-            onchange="handleStreamInclusionChange('${stream}', event)" ${isStreamIncluded ? 'checked' : ''} />
-
-          <!-- Stream Name -->
-          <span style="font-weight:600;font-size:14px;flex:1 1 90px;min-width:0;color:var(--dark);">${stream}</span>
-
-          <!-- Size Buttons (Horizontal) -->
-          <div style="display:flex;gap:6px;flex-shrink:0;">
-            <button onclick="handleStreamSizeClick('${stream}', 'Small', event)" style="padding:6px 12px;border:0.5px solid var(--border);border-radius:6px;background:${isStreamIncluded && streamBins.some(b => b.scale === 'Small' && b.selected) ? 'var(--green)' : 'var(--bg)'};color:${isStreamIncluded && streamBins.some(b => b.scale === 'Small' && b.selected) ? 'white' : 'var(--dark)'};font-size:11px;font-weight:600;cursor:${isStreamIncluded ? 'pointer' : 'not-allowed'};opacity:${isStreamIncluded ? '1' : '0.4'};transition:all 0.2s;pointer-events:${isStreamIncluded ? 'auto' : 'none'};">Small</button>
-            <button onclick="handleStreamSizeClick('${stream}', 'Medium', event)" style="padding:6px 12px;border:0.5px solid var(--border);border-radius:6px;background:${isStreamIncluded && streamBins.some(b => b.scale === 'Medium' && b.selected) ? 'var(--green)' : 'var(--bg)'};color:${isStreamIncluded && streamBins.some(b => b.scale === 'Medium' && b.selected) ? 'white' : 'var(--dark)'};font-size:11px;font-weight:600;cursor:${isStreamIncluded ? 'pointer' : 'not-allowed'};opacity:${isStreamIncluded ? '1' : '0.4'};transition:all 0.2s;pointer-events:${isStreamIncluded ? 'auto' : 'none'};">Medium</button>
-            <button onclick="handleStreamSizeClick('${stream}', 'Large', event)" style="padding:6px 12px;border:0.5px solid var(--border);border-radius:6px;background:${isStreamIncluded && streamBins.some(b => b.scale === 'Large' && b.selected) ? 'var(--green)' : 'var(--bg)'};color:${isStreamIncluded && streamBins.some(b => b.scale === 'Large' && b.selected) ? 'white' : 'var(--dark)'};font-size:11px;font-weight:600;cursor:${isStreamIncluded ? 'pointer' : 'not-allowed'};opacity:${isStreamIncluded ? '1' : '0.4'};transition:all 0.2s;pointer-events:${isStreamIncluded ? 'auto' : 'none'};">Large</button>
+      html += `<div style="background:var(--card);border:0.5px solid var(--border);border-left:6px solid ${col};border-radius:10px;padding:14px 14px 10px;margin-bottom:14px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-weight:700;font-size:14px;flex:1 1 90px;min-width:0;color:${txt};">${stream}</span>
+          <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+            ${stepBtn('−', -1, count === 0)}
+            <span style="min-width:22px;text-align:center;font-size:18px;font-weight:700;color:var(--dark);">${count}</span>
+            ${stepBtn('+', 1, count >= MAX_BINS_PER_STREAM)}
           </div>
         </div>
-
-        <!-- Accessories (only show if stream is included) -->
-        ${isStreamIncluded ? `<div style="padding-top:8px;border-top:0.5px solid var(--border);">
-          <div style="font-size:10px;color:var(--muted);margin-bottom:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Accessories</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            ${accessories.map(acc => {
-              // Bug fix (28 Sep 2026): prefer the primary bin so the checkbox
-              // shown here matches what toggleStreamAccessory() above would
-              // actually edit.
-              const selectedBin = streamBins.find(b => b.selected && !b.addedViaMoreBins) || streamBins.find(b => b.selected);
-              const isChecked = selectedBin && selectedBin.accessories && selectedBin.accessories.includes(acc);
-              return `<label style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--bg);border-radius:6px;cursor:pointer;border:0.5px solid var(--border);transition:all 0.2s;">
-                <input type="checkbox" data-stream="${stream}" data-accessory="${acc}" style="cursor:pointer;width:14px;height:14px;accent-color:var(--green);"
-                  onchange="handleStreamAccessoryChange('${stream}', '${acc}', event)" ${isChecked ? 'checked' : ''} />
-                <div style="font-size:11px;font-weight:600;color:var(--dark);">${acc}</div>
-              </label>`;
-            }).join('')}
-          </div>
-        </div>` : ''}
+        ${count === 0 ? '<div style="font-size:11px;color:var(--muted);margin-top:6px;">Tap + to add a bin for this stream.</div>' : ''}
+        ${idxs.map((bi, n) => {
+          const bin = stationCreationBins[bi];
+          const accCount = (bin.accessories || []).length;
+          const sizeBtn = size => {
+            const on = bin.scale === size;
+            return `<button type="button" onclick="setStationBinScale(${bi}, '${size}')" style="padding:7px 12px;border:0.5px solid ${on ? col : 'var(--border)'};border-radius:6px;background:${on ? col : 'var(--bg)'};color:${on ? (col.toUpperCase()==='#FFFF61' || col.toUpperCase()==='#CCCCCC' ? '#222' : '#fff') : 'var(--dark)'};font-size:12px;font-weight:600;cursor:pointer;">${size}</button>`;
+          };
+          return `<div style="padding:10px 0 4px;margin-top:10px;border-top:0.5px solid var(--border);">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <span style="font-size:12px;font-weight:700;color:var(--muted);min-width:44px;">Bin ${n + 1}</span>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">${sizeBtn('Small')}${sizeBtn('Medium')}${sizeBtn('Large')}</div>
+              <button type="button" onclick="toggleStationBinAccessoryPanel(${bi})" style="margin-left:auto;padding:7px 10px;border:0.5px solid var(--border);border-radius:6px;background:var(--bg);color:var(--dark);font-size:11px;font-weight:600;cursor:pointer;">Accessories${accCount ? ' (' + accCount + ')' : ''} ${bin.accOpen ? '▴' : '▾'}</button>
+            </div>
+            ${bin.accOpen ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+              ${STATION_ACCESSORIES.map(acc => `<label style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--bg);border-radius:6px;cursor:pointer;border:0.5px solid var(--border);">
+                <input type="checkbox" style="width:14px;height:14px;accent-color:var(--green);" onchange="toggleStationBinAccessory(${bi}, '${acc}')" ${(bin.accessories || []).includes(acc) ? 'checked' : ''} />
+                <span style="font-size:11px;font-weight:600;color:var(--dark);">${acc}</span>
+              </label>`).join('')}
+            </div>` : ''}
+          </div>`;
+        }).join('')}
       </div>`;
     });
   }
 
-  console.log('[RENDER STATION BINS] About to set innerHTML');
   try {
     container.innerHTML = html;
-    console.log('[RENDER STATION BINS] innerHTML set successfully');
-
-    // Restore scroll position
-    if(scrollParent) {
-      scrollParent.scrollTop = scrollPosition;
-      scrollParent.scrollLeft = 0;
-      console.log('[RENDER STATION BINS] Restored scroll position to:', scrollPosition);
-    }
+    if(scrollParent){ scrollParent.scrollTop = scrollPosition; scrollParent.scrollLeft = 0; }
   } catch(e) {
     console.error('[RENDER STATION BINS] Error setting innerHTML:', e);
   }
+  renderStationBinsSummary_();
 }
 
-function handleStreamInclusionChange(stream, event){
-  if(event) {
-    event.preventDefault();
-    event.stopPropagation();
-  }
-  toggleStreamInclusion(stream, event.target.checked);
+// Running total shown above the list so the surveyor can confirm the bin
+// count for the whole station before tapping Create Station.
+function renderStationBinsSummary_(){
+  const el = document.getElementById('station-bins-summary');
+  if(!el) return;
+  const total = stationCreationBins.length;
+  const parts = [];
+  (S.selectedStreams || []).forEach(o => {
+    const stream = o.stream || o;
+    const n = stationCreationBins.filter(b => b.stream === stream).length;
+    if(n) parts.push(`<span style="display:inline-flex;align-items:center;gap:5px;margin-right:10px;white-space:nowrap;"><span style="width:10px;height:10px;border-radius:50%;background:${streamCol(stream)};display:inline-block;border:0.5px solid var(--border);"></span>${stream} ×${n}</span>`);
+  });
+  el.innerHTML = total
+    ? `<div style="font-weight:700;font-size:13px;color:var(--dark);margin-bottom:4px;">Total bins at this station: ${total}</div><div style="font-size:11px;color:var(--muted);line-height:1.8;">${parts.join('')}</div>`
+    : '<div style="font-size:12px;color:var(--muted);">No bins yet — use + on a stream below.</div>';
 }
 
-function toggleStreamInclusion(stream, isChecked){
-  if(isChecked){
-    // User checked the stream - add default bin with Small size.
-    // Bug fix (28 Sep 2026): look for the PRIMARY bin specifically (not one
-    // added via "Add More Bins") — see setStreamSize() for why the
-    // distinction matters.
-    const existingBin = stationCreationBins.find(b => b.stream === stream && !b.addedViaMoreBins);
-    if(!existingBin){
-      stationCreationBins.push({
-        stream: stream,
-        scale: 'Small',
-        selected: true,
-        accessories: [],
-        photos: []
-      });
-    } else {
-      existingBin.selected = true;
-    }
-  } else {
-    // User unchecked the stream - remove all bins for this stream
-    stationCreationBins = stationCreationBins.filter(b => b.stream !== stream);
+function adjustStreamBinCount(streamIdx, delta){
+  const stream = streamNameAt_(streamIdx);
+  if(!stream) return;
+  let last = -1;
+  stationCreationBins.forEach((b, i) => { if(b.stream === stream) last = i; });
+  const count = stationCreationBins.filter(b => b.stream === stream).length;
+  if(delta > 0){
+    if(count >= MAX_BINS_PER_STREAM) return;
+    // New bin copies the previous bin of this stream (size + accessories) — the
+    // common case is several identical bins; adjust the odd one out afterwards.
+    const prev = last >= 0 ? stationCreationBins[last] : null;
+    const bin = { stream, scale: prev ? prev.scale : 'Small', selected: true, accessories: prev ? (prev.accessories || []).slice() : [], photos: [] };
+    stationCreationBins.splice(last >= 0 ? last + 1 : stationCreationBins.length, 0, bin);
+  } else if(delta < 0 && last >= 0){
+    stationCreationBins.splice(last, 1);
   }
   renderStationBinsUI();
 }
 
-function handleStreamSizeClick(stream, size, event){
-  if(event) {
-    event.preventDefault();
-    event.stopPropagation();
-  }
-
-  // Check if stream is actually included before allowing size selection
-  const streamBins = stationCreationBins.filter(b => b.stream === stream);
-  const isStreamIncluded = streamBins.some(b => b.selected); // Stream is included only if a size is actually selected — every stream gets 3 placeholder (Small/Medium/Large) entries at init, so checking length alone made every checkbox render pre-checked
-
-  if(!isStreamIncluded) {
-    console.warn('[SIZE BUTTON] Stream not included, ignoring click:', stream);
-    return;
-  }
-
-  console.log('[SIZE BUTTON] Clicked:', stream, size);
-  setStreamSize(stream, size);
-}
-
-function setStreamSize(stream, size){
-  console.log('[SIZE BUTTON] Processing:', stream, size);
-
-  // Bug fix (28 Sep 2026): only touch this stream's PRIMARY bin (the one the
-  // main modal's own checkbox/size controls own) — bins added via "Add More
-  // Bins" (addedViaMoreBins: true) are that modal's own controls' business,
-  // not the main modal's. Before this fix, clicking a size button here
-  // deselected EVERY bin for the stream that didn't match, including any
-  // extra bin just added via "Add More Bins" — silently destroying it with
-  // no indication, which is what made "additional bins" disappear by the
-  // time the station was actually created.
-  const primaryBins = stationCreationBins.filter(bin => bin.stream === stream && !bin.addedViaMoreBins);
-  if (primaryBins.length === 0) {
-    // This stream currently has only Add-More-Bins-added entries — create a
-    // primary bin rather than letting the size button silently do nothing.
-    stationCreationBins.push({ stream, scale: size, selected: true, accessories: [], photos: [] });
-  } else {
-    primaryBins.forEach(bin => {
-      bin.selected = (bin.scale === size);
-      console.log('[SIZE BUTTON] Updated', bin.stream, bin.scale, '-> selected:', bin.selected);
-    });
-  }
-
-  console.log('[SIZE BUTTON] stationCreationBins after update:', stationCreationBins);
+function setStationBinScale(binIdx, size){
+  const b = stationCreationBins[binIdx];
+  if(!b) return;
+  b.scale = size;
   renderStationBinsUI();
 }
 
-function handleStreamAccessoryChange(stream, accessory, event){
-  if(event) {
-    event.preventDefault();
-    event.stopPropagation();
-  }
-  toggleStreamAccessory(stream, accessory, event.target.checked);
-}
-
-function toggleStreamAccessory(stream, accessory, isChecked){
-  // Bug fix (28 Sep 2026): prefer the stream's primary bin (consistent with
-  // setStreamSize/toggleStreamInclusion above); fall back to any selected
-  // bin only if this stream has nothing but Add-More-Bins-added entries.
-  const bin = stationCreationBins.find(b => b.stream === stream && b.selected && !b.addedViaMoreBins)
-    || stationCreationBins.find(b => b.stream === stream && b.selected);
-  if(!bin) return;
-
-  if(isChecked){
-    if(!bin.accessories.includes(accessory)) bin.accessories.push(accessory);
-  } else {
-    bin.accessories = bin.accessories.filter(a => a !== accessory);
-  }
+function toggleStationBinAccessoryPanel(binIdx){
+  const b = stationCreationBins[binIdx];
+  if(!b) return;
+  b.accOpen = !b.accOpen;
   renderStationBinsUI();
 }
 
-// Old toggleBinAccessory removed - replaced with toggleStreamAccessory
-
-function openAddMoreBinsModal(){
-  const container = document.getElementById('more-bins-stream-list');
-  if(!container){
-    console.error('[ADD MORE BINS] more-bins-stream-list container not found!');
-    alert('Error: UI element not found. Please refresh the page.');
-    return;
-  }
-
-  let html = '';
-
-  if(!S.selectedStreams || S.selectedStreams.length === 0){
-    alert('No streams selected. Please select streams first.');
-    return;
-  }
-
-  S.selectedStreams.forEach((streamObj, streamIdx) => {
-    const stream = streamObj.stream || streamObj;
-
-    html += `<div style="background:var(--card);border:0.5px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px;">
-      <!-- Stream with Size Buttons (Horizontal) -->
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-        <span style="font-weight:600;font-size:14px;flex:1;color:var(--dark);">${stream}</span>
-        <div style="display:flex;gap:6px;">
-          <button onclick="setMoreBinScale('${stream}', ${streamIdx}, 'Small')" data-scale-${streamIdx}="Small" style="padding:6px 12px;border:0.5px solid var(--border);border-radius:6px;background:var(--bg);color:var(--dark);font-size:11px;font-weight:600;cursor:pointer;transition:all 0.2s;">Small</button>
-          <button onclick="setMoreBinScale('${stream}', ${streamIdx}, 'Medium')" data-scale-${streamIdx}="Medium" style="padding:6px 12px;border:0.5px solid var(--border);border-radius:6px;background:var(--bg);color:var(--dark);font-size:11px;font-weight:600;cursor:pointer;transition:all 0.2s;">Medium</button>
-          <button onclick="setMoreBinScale('${stream}', ${streamIdx}, 'Large')" data-scale-${streamIdx}="Large" style="padding:6px 12px;border:0.5px solid var(--border);border-radius:6px;background:var(--bg);color:var(--dark);font-size:11px;font-weight:600;cursor:pointer;transition:all 0.2s;">Large</button>
-        </div>
-      </div>
-
-      <!-- Accessories -->
-      <div style="padding-top:8px;border-top:0.5px solid var(--border);">
-        <div style="font-size:10px;color:var(--muted);margin-bottom:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Accessories</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-          ${['Button', 'LOKSAK Bag', 'Bottom Plate', 'Top Plate', 'Strap'].map(acc => `
-            <label style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--bg);border-radius:6px;cursor:pointer;border:0.5px solid var(--border);transition:all 0.2s;">
-              <input type="checkbox" class="more-bins-acc-${streamIdx}" data-accessory="${acc}" style="cursor:pointer;width:14px;height:14px;accent-color:var(--green);"/>
-              <div style="font-size:11px;font-weight:600;color:var(--dark);">${acc}</div>
-            </label>
-          `).join('')}
-        </div>
-      </div>
-
-      <button class="btn btn-primary" style="width:100%;padding:12px;" onclick="addBinToStation('${stream}', ${streamIdx})">Add Bin</button>
-    </div>`;
-  });
-
-  container.innerHTML = html;
-  openModal('modal-add-more-bins');
-}
-
-function setMoreBinScale(stream, streamIdx, scale){
-  // Update button styling to show selected scale
-  const buttons = document.querySelectorAll(`button[data-scale-${streamIdx}]`);
-  buttons.forEach(btn => {
-    if(btn.textContent.trim() === scale){
-      btn.style.background = 'var(--green)';
-      btn.style.color = 'white';
-    } else {
-      btn.style.background = 'var(--bg)';
-      btn.style.color = 'var(--dark)';
-    }
-  });
-  // Store the selected scale
-  const scaleMeta = document.querySelector(`button[data-scale-${streamIdx}="${scale}"]`);
-  if(scaleMeta) scaleMeta.dataset.selectedScale = scale;
-}
-
-function addBinToStation(stream, streamIdx){
-  // Get selected scale from button styling
-  const buttons = document.querySelectorAll(`button[data-scale-${streamIdx}]`);
-  let scale = 'Small'; // Default to Small
-  buttons.forEach(btn => {
-    if(btn.style.background === 'var(--green)' || btn.style.background.includes('var(--green)')){
-      scale = btn.textContent.trim();
-    }
-  });
-
-  // Get selected accessories
-  const accCheckboxes = document.querySelectorAll(`.more-bins-acc-${streamIdx}:checked`);
-  const accessories = Array.from(accCheckboxes).map(cb => cb.dataset.accessory);
-
-  // Bug fix (28 Sep 2026): tagged addedViaMoreBins — see setStreamSize() and
-  // toggleStreamAccessory() below for why this matters. Add a NEW duplicate
-  // bin to stationCreationBins; user is explicitly adding this bin, so mark
-  // it as selected.
-  stationCreationBins.push({
-    stream: stream,
-    scale: scale,
-    selected: true,
-    accessories: accessories,
-    photos: [],
-    addedViaMoreBins: true
-  });
-
-  // Rerender and close modal
+function toggleStationBinAccessory(binIdx, accessory){
+  const b = stationCreationBins[binIdx];
+  if(!b) return;
+  if(!b.accessories) b.accessories = [];
+  b.accessories = b.accessories.includes(accessory) ? b.accessories.filter(a => a !== accessory) : b.accessories.concat(accessory);
   renderStationBinsUI();
-  closeModal('modal-add-more-bins');
 }
 
 function resetStationCreationPhoto(){
@@ -6019,7 +5904,7 @@ async function confirmStationCreation(){
   if(selectedBins.length === 0){
     console.error('[STATION CREATION] ERROR: No bins selected! stationCreationBins length:', stationCreationBins.length);
     stationCreationBins.forEach((bin, i) => console.log(`  [${i}]`, bin));
-    alert('Please select at least one scale size for a stream.');
+    alert('Please add at least one bin — tap + on a stream.');
     return;
   }
 
@@ -6469,13 +6354,45 @@ document.getElementById('st-notes').addEventListener('input',()=>{
 });
 
 // ── BINS ──
-const STREAM_COLORS={
-  'Trash':'#6B7280','Compost':'#84CC16','Mixed Recycling':'#F59E0B',
-  'Paper/Cardboard':'#A78BFA','Glass':'#60A5FA','Plastics':'#34D399',
-  'Food Share':'#F97316','Plastic Bottles':'#22D3EE','Metals':'#94A3B8',
-  'e-Waste':'#F87171','Biohazard':'#EF4444','Coffee Cups':'#D97706',
+// ── STREAM COLOURS — linked to the Spare-it platform's sorting-rule stream colours ──
+// Hex values sampled from the platform's Sorting Rules stream tiles (9 Oct 2026).
+// The app's own stream names are mapped to the platform stream they correspond to
+// (e.g. Compost -> Organics, Recycling -> Mixed Recycling), so the same stream
+// has the same colour here as on the platform.
+const PLATFORM_STREAM_COLORS={
+  'Mixed Recycling':'#6096B4','Trash':'#595A5C','Coffee Pods Grounds':'#6A503B',
+  'Food Donation':'#C642A4','Sink':'#14377E','Glass':'#24431A',
+  'Paper and Cardboard':'#84BC51','Organics':'#DF6D40','Cardboard':'#3B86C3',
+  'Hazardous Waste':'#FFFF61','E-Waste':'#181717','Soft Plastics':'#CCCCCC',
 };
-function streamCol(s){ return STREAM_COLORS[s]||'#10B981'; }
+const STREAM_TO_PLATFORM={
+  'Trash':'Trash','Recycling':'Mixed Recycling','Mixed Recycling':'Mixed Recycling',
+  'Compost':'Organics','Organics':'Organics','Glass':'Glass',
+  'Paper/Cardboard':'Paper and Cardboard','Paper and Cardboard':'Paper and Cardboard',
+  'Shredded Paper':'Paper and Cardboard','Confidential Paper':'Paper and Cardboard',
+  'Cardboard':'Cardboard','e-Waste':'E-Waste','E-Waste':'E-Waste',
+  'Biohazard':'Hazardous Waste','Hazardous Waste':'Hazardous Waste',
+  'Food Share':'Food Donation','Donation':'Food Donation','Food Donation':'Food Donation',
+  'Coffee pod/ground':'Coffee Pods Grounds','Coffee Pods Grounds':'Coffee Pods Grounds',
+  'Plastics':'Mixed Recycling','Plastic Bottles':'Mixed Recycling','Metals':'Mixed Recycling',
+  'Coffee Cups':'Mixed Recycling','Beverage Cartons':'Mixed Recycling','Other Recycling':'Mixed Recycling',
+  'Soft Plastics':'Soft Plastics','Soft Plastic':'Soft Plastics','Sink':'Sink',
+};
+// Kept for any older caller that indexes the map by app stream name.
+const STREAM_COLORS=new Proxy({}, { get:(_,k)=> (typeof k==='string' ? streamCol(k) : undefined) });
+function streamCol(s){
+  const platformName = STREAM_TO_PLATFORM[s] || s;
+  return PLATFORM_STREAM_COLORS[platformName] || '#8E9196'; // unknown stream: neutral grey
+}
+// Text-safe variant: the platform's Hazardous (pale yellow) and Soft Plastics
+// (light grey) tiles are unreadable as text on white, so use a darker shade of
+// the same hue for labels while the tile/accent colour stays exact.
+function streamTextCol(s){
+  const c = streamCol(s).toUpperCase();
+  if(c==='#FFFF61') return '#4B4A12';
+  if(c==='#CCCCCC') return '#7A7A7A';
+  return c;
+}
 
 function renderBins(){
   const st=gSt(); const card=document.getElementById('bin-card');
@@ -6495,7 +6412,7 @@ function renderBins(){
     return `<div style="background:var(--card);border:2px solid var(--border);border-radius:8px;margin-bottom:12px;padding:12px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;transition:border-color 0.2s;" onclick="openBinEditor(${i})" onmouseover="this.style.borderColor='${streamColor}'" onmouseout="this.style.borderColor='var(--border)'">
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-          <span style="font-weight:700;font-size:14px;color:${streamColor};">${b.stream}</span>
+          <span style="font-weight:700;font-size:14px;color:${streamTextCol(b.stream)};border-left:5px solid ${streamColor};padding-left:8px;">${b.stream}</span>
           <span style="font-weight:700;font-size:12px;color:var(--dark);background:var(--bg);padding:4px 10px;border-radius:4px;border:1px solid var(--border);">${b.scale}</span>
         </div>
         <div style="font-size:11px;color:var(--muted);">
