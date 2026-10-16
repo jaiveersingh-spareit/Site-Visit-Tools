@@ -1,15 +1,93 @@
 # BLOCKERS — INTERNAL Site Visit Tool
 
-**Updated 27 Aug 2026 (second pass).** Primary source: `READINESS_AND_NEXT_STEPS_2026-08-26.html`
-(the most reliable document in the project — the only one that contradicts its own
-"production ready" claims). Cross-checked against `../_Knowledge/`.
+**Updated 16 Oct 2026.** Primary sources: field test feedback (MFS Luxembourg, 8 Sep 2026),
+`READINESS_AND_NEXT_STEPS_2026-08-26.html`, and a code review against this file (entry 14).
 
-> **Headline:** not field-ready today; roughly **1.5 days of work away**. The app has a
-> working end-to-end capture flow and a built email export. It is not broken — it is
-> unfinished in four specific places, and two of them would fail **silently on the day**,
-> after the auditor has already done the work.
->
-> **None of the four needs a backend decision.**
+> **Headline:** the code is well ahead of the verification. Since the Luxembourg visit the
+> photo pipeline, station modal, floor-plan storage and Drive sync have been rebuilt, and
+> everything passes automated checks (46) — but **nothing below has been watched working on a
+> phone.** The site is live. The gates before wider use are the on-device checklist, a test of
+> the email export, and rotating the backend token (entry 14, item 1).
+
+### Status labels
+- **FIXED IN CODE · UNVERIFIED ON DEVICE** — changed and automatically tested; nobody has watched it work on a phone.
+- **RESOLVED `<date>`** — someone ran it and watched it work.
+- **OPEN** — not fixed.
+
+### Where we are
+| Area | State |
+|---|---|
+| Deploy | Live at `spare-itsitevisitinternaltool.netlify.app` (old `spareit-sitevisitapp` site is stale; do not use) |
+| Email export | Built (single + floor by floor, size-guarded); **not yet confirmed working on the live site** |
+| Photos | Stored in IndexedDB, background queue with retry and de-duplication — unverified on device (06) |
+| Station creation | Double-tap fixed; bin count stepper; platform stream colours (06, 08, 09, 11) — unverified |
+| Floor plans and pins | Plan in IndexedDB; plan and annotated copy saved to Drive; Sheet check (10, 13) — unverified |
+| Sheet safety | Overwrite guard, History tab, Restore from Drive (13) — unverified; **Code.gs deployed 16 Oct** |
+| Security | Shared token in page source — **OPEN** (14) |
+
+### On-device checklist (one place for everything unverified)
+1. Create a station with a photo and double-tap *Create* → exactly one station (06).
+2. Capture photos offline, reconnect → they upload; kill the app mid-upload → recovers on relaunch (06).
+3. Export before a photo has synced → photo still appears in the output (06).
+4. Create station A, then B: use + on streams, set sizes and accessories, total looks right (08, 11).
+5. Stream colours look the same as on the platform (09).
+6. Scroll the page around the floor plan; place a pin and it lands where tapped (08).
+7. Upload a plan → Drive folder has `…_original.jpg` and `…_annotated.jpg`; Floors tab shows `check = OK`; Stations rows have `planLink` (10).
+8. Update the app with plans already on the phone → plans still show (migration) (13).
+9. Clear site data on a test phone → *Restore from Drive* brings floors, stations, pins and plan back (13).
+10. Trigger a blocked sync (empty phone syncing a populated floor) → orange banner, nothing overwritten, History tab untouched (13).
+11. Email export on the live site, single and floor by floor (00, 01, 03).
+
+## Recent work (8–16 Oct 2026)
+### 08 · 2nd station: waste streams not selectable; floor-plan scrolling painful — FIXED IN CODE 8 Oct 2026 · UNVERIFIED ON DEVICE
+- **Cause (streams):** the streams list scrolled sideways (overflow-y:auto implies overflow-x:auto) and kept its sideways offset between stations, pushing the checkboxes off-screen so size buttons stayed disabled.
+- **Fix:** overflow-x hidden, scrollLeft/scrollTop reset on open and render, header row wraps (checkbox, name, size buttons stay in view).
+- **Floor plan:** plan container now 62vh tall with 12px side gutters so the page can be scrolled by touching the margins. Values are tunable.
+- **To test on device:** create station A then B — tick streams without "Add More Bins"; scroll the page around the plan; place a pin and confirm it lands where tapped.
+
+### 09 · Stream colours linked to platform sorting-rule colours — FIXED IN CODE 9 Oct 2026 · UNVERIFIED ON DEVICE
+- Hex values sampled from the platform's Sorting Rules stream tiles (Mixed Recycling #6096B4, Trash #595A5C, Organics #DF6D40, Paper and Cardboard #84BC51, Cardboard #3B86C3, Glass #24431A, E-Waste #181717, Food Donation #C642A4, Coffee Pods Grounds #6A503B, Sink #14377E, Hazardous #FFFF61, Soft Plastics #CCCCCC).
+- App stream names map to the platform stream (Compost→Organics, Recycling→Mixed Recycling, Biohazard→Hazardous, Food Share→Food Donation, Plastics/Metals/Cartons→Mixed Recycling). Unknown streams are neutral grey.
+- Pale Hazardous/Soft Plastics use a darker shade for text only (unreadable on white otherwise).
+- Note: the Site Visit Workflow deck pin key (Trash black, Recycle blue, Compost green…) is a separate PIN key and was not used for stream colours.
+
+### 10 · Floor plan saved to Drive + pin check in Sheet — FIXED IN CODE 9 Oct 2026 · Code.gs deployed 16 Oct · UNVERIFIED ON DEVICE
+- Before: the floor plan image lived only in this browser's localStorage (never in Drive).
+- Now: original plan uploaded once; annotated plan (all pins drawn) re-uploaded whenever pins are added/moved/removed. Files: `<Building>_F<n>_FloorPlan_original.jpg` / `_annotated.jpg` in the building's Drive folder (old copy is trashed, not hard-deleted).
+- Stations tab: new `planLink` column; pin position stays in `x`,`y` (% of plan width/height). Floors tab: both links, pinsOnImage, stationsInSheet, pinnedInSheet and a `check` column (OK / CHECK).
+- Failed uploads retry every 45 s and when back online.
+
+### 11 · Station modal: bin count per stream — FIXED IN CODE 9 Oct 2026 · UNVERIFIED ON DEVICE
+- Each stream has a − / + stepper; every bin gets its own size and optional accessories; new bin copies the previous one in that stream. Running total shown at the top. Max 12 per stream.
+- Removed the separate "Add More Bins" modal and the placeholder-bin model it relied on.
+
+### 12 · Station creation → Drive sync review (data-loss risks) — PARTLY CLOSED BY 13
+**Fixed now (9 Oct):**
+- Floor-data sync failure was never retried until the next edit → now retried every 45 s and on reconnect.
+- Apps Script writes were not serialised → all POSTs now take a script lock.
+- Floor plan existed only on the phone → now in Drive (entry 10).
+**Closed since (see 13):** floor plans moved to IndexedDB; Sheet overwrite guard + History tab + Restore from Drive.
+**Still open:**
+1. No visible "all saved to Drive ✓ / n pending" status per floor on the floor screen.
+2. No one-tap backup download (JSON) per floor/building.
+3. Shared token and Web App URL are in the page source — now more important because Restore can read data (see 14).
+
+### 13 · Storage move, overwrite guard, Restore from Drive — FIXED IN CODE 16 Oct 2026 · Code.gs deployed 16 Oct · UNVERIFIED ON DEVICE
+- **Floor plans → IndexedDB.** Plans no longer sit in localStorage next to station data. Existing plans migrate automatically at startup: copied to IndexedDB, read back and verified, only then removed from localStorage. If IndexedDB fails, the plan stays in localStorage (no loss).
+- **Overwrite guard (Apps Script).** A sync that would delete everything on a floor, or more than half of 3+ saved rows, is refused. The phone shows an orange "Drive sync paused" banner with *Restore from Drive* and *Overwrite Drive* buttons; auto-retry stops until you choose. Whenever rows are removed or force-overwritten, the old rows are first copied to a new **History** tab.
+- **Restore from Drive (new).** Sync/Photo Queue modal → ☁️ Restore → pick a building. Adds whatever the phone is missing (floors, stations + bins, pins, gateways, displays, photo links; plan image and photo bytes download in the background). Additive only — never overwrites or deletes local data. Needs a Floors row per floor, which every sync now writes (older data fills in on its next sync).
+- **Bug fixed (existing since v2):** `writeSheetRows_` only cleared as many rows as the new data had, so when a floor's rows shrank (e.g. a bin deleted) stale rows stayed in the Sheet. Now clears the full previous range.
+- **Bug fixed:** Building List "Streams" column was written as "[object Object]"; now the stream names.
+- Open: History tab has no size cap; a retention rule (e.g. 90 days) can be added later. Restore is one-phone-at-a-time (no merge of conflicting edits).
+
+### 14 · Code review against this file — 16 Oct 2026 — OPEN (new findings)
+Every entry above was checked against the current code (netlify.toml, export guards, photo store, submission lock, bin modal, plan storage, Code.gs guard/restore). Claims in 00, 01, 03, 04, 06 match the code; 07 is superseded by 11; 08–13 are present and pass automated checks (jsdom page suite 20 + 6 regression, fake-Sheet Apps Script suite 20). **No automated check substitutes for the device checklist at the top of this file.**
+New findings:
+1. **Weak access control on the backend — HIGH.** Token `123` is in the page source and the Web App is open to anyone with the link. With Restore, the token now allows reading all building rows; `getPhoto` returns any Drive file the script owner can open, by id. **Fix:** rotate the token (set it in Script Properties and the client), restrict `getPhoto` to files inside the known building folders.
+2. **Tests are not in the repo — MEDIUM.** The new suites run from a temporary folder that is wiped between sessions. `tools/tests/` holds only the 12 Sep tests, which predate the photo rebuild. **Fix:** commit the new suites to `tools/tests/` and update its README.
+3. **Overwrite guard false positive — LOW.** Deliberately deleting more than half of a floor's rows (e.g. 10 → 4) is blocked until the user taps *Overwrite Drive*. Intended; document in the field guide.
+4. **Restore matches buildings by name — LOW.** Renaming a building after it has synced splits its data into two buildings.
+5. **Minor, safe fallbacks:** the "last synced" fingerprint is memory-only, so each floor re-sends once after an app reload; the IndexedDB version 1 → 2 upgrade can stall while an old tab is open (plan saves then fall back to localStorage); the orange "sync paused" and red "not saved" banners can overlap.
 
 ## Shipping blockers
 
@@ -34,7 +112,7 @@ dashboard only; `OPERATIONS_EMAIL` already has a `support@spare-it.com` fallback
 > **Still unverified for 00 and 01:** neither fix has been seen working, because there is
 > no live site yet. Both stay `RESOLVED` in code, `Unverified` in the field, until 02 is done.
 
-### 02 · No site has been published — BLOCKER · ~20 min · OPEN
+### 02 · No site has been published — BLOCKER · RESOLVED Oct 2026 (site live)
 The folder has the deploy config and the serverless function. Version control now exists
 (corrected below), but **no Netlify site is connected** and nobody has a URL to hand
 Carine. **Everything else is moot until this is done.**
@@ -43,6 +121,7 @@ that will bite: **Base directory must be `Internal-Tool`**, or the functions are
 found; and `noreply@spare-it.com` must be a **verified sender in SendGrid**, or every
 send returns 403 no matter how correct the key is.
 **Then post the URL in channel.**
+**RESOLVED:** the site is live at `https://spare-itsitevisitinternaltool.netlify.app/` (confirmed from the Netlify deploy log, Oct 2026). The earlier site `spareit-sitevisitapp.netlify.app` is stale and was removed from the test phone. *00 and 01 stay unverified until the email export is actually sent from the live site.*
 
 ### 03 · A large visit will exceed the export size limit — HIGH · RESOLVED 27 Aug 2026
 Photos compress to ~150KB each; email encoding adds ~a third. The hosted function accepts
@@ -65,7 +144,7 @@ subject line carries `Floor N (i of n)` so operations can see if one is missing.
 four requests of 2.5–2.7MB, all under the cap, with context photos sent exactly once.
 **Not yet run on a phone against a live deployment** — that is the field gate under 02.*
 
-### 04 · Photos sit in browser storage with a hard ceiling — HIGH · RESOLVED 28 Sep 2026
+### 04 · Photos sit in browser storage with a hard ceiling — HIGH · FIXED IN CODE 28 Sep 2026 · UNVERIFIED ON DEVICE
 Photos were held as base64 text inline in the app's single localStorage blob, capped near
 5–10MB total. This bit **mid-visit** and could lose captured work — confirmed in the field
 at the Luxembourg site visit ("the app bugs out if a station is created and there are
@@ -73,6 +152,7 @@ photos being uploaded that are still being synced").
 **Proper fix, implemented:** photo bytes now live in IndexedDB (disk-proportional quota,
 not a ~5MB wall) instead of inline in the localStorage blob — see entry 06 for the full
 architecture change and how it also fixed a related duplicate-station bug.
+**Follow-up (16 Oct 2026):** floor plan images were still in localStorage until entry 13 moved them to IndexedDB.
 **Historical pilot fix (superseded):** export after each floor (see 03) — no longer the
 primary mitigation now that the storage ceiling itself is fixed, but still a reasonable
 belt-and-suspenders habit.
@@ -92,10 +172,9 @@ system of record, so if the app fails nothing is lost and we still learn somethi
 | Same day | Full workflow on a phone against a real floor plan with 15+ photos, both export paths | The export email actually arrives |
 | Week of 1 Sep | 20-min walkthrough with Carine and a one-page fallback card | Carine can run it unaided |
 
-**Remaining to field-ready: blocker 02 (~20 min) plus one device test.** 00, 01 and 03 are
-fixed in code and await a live site to be verified against.
+*(Historical — written 27 Aug.)* **Remaining at that time: blocker 02 plus one device test.** The site is now live; the device test is the checklist at the top of this file.
 
-### 05 · "Add Station/Gateway/Display" placed no pin on first-time creation — BLOCKER · RESOLVED 03 Sep 2026 (code) · UNVERIFIED IN FIELD
+### 05 · "Add Station/Gateway/Display" placed no pin on first-time creation — BLOCKER · FIXED IN CODE 03 Sep 2026 · UNVERIFIED ON DEVICE
 **Found 3 Sep 2026** (Jaiveer, testing on the app). Tapping "+ Add Station" (or Gateway /
 Display) put the floor plan into pin-placement mode correctly, but tapping the floor plan
 image afterward silently did nothing — no pin appeared, no error shown.
@@ -127,7 +206,7 @@ same normal-pin-placement path repositioning always used.
 tap "+ Add Station/Gateway/Display" on a phone and confirm a pin actually appears and the
 configuration modal opens, per rule 4 (`Fixed` requires watching it work).*
 
-### 06 · Duplicate stations on double-tap, and photo sync architecture rebuilt on IndexedDB — HIGH · RESOLVED 28 Sep 2026
+### 06 · Duplicate stations on double-tap, and photo sync architecture rebuilt on IndexedDB — HIGH · FIXED IN CODE 28 Sep 2026 · UNVERIFIED ON DEVICE
 **Found via field testing at the MFS Luxembourg site visit** (Jaiveer): "the app bugs out
 if a station is created and there are photos being uploaded that are still being synced,"
 and separately, local storage filling up mid-visit while photos were still syncing to
@@ -208,7 +287,9 @@ confirm localStorage no longer fills up; a stretch offline with several photos c
 then reconnecting, to confirm the drain catches up; and killing/reopening the app
 mid-upload to confirm a stuck-pending photo recovers on next launch.
 
-### 07 · Extra bins silently disappeared when creating a station — HIGH · RESOLVED 28 Sep 2026
+### 07 · Extra bins silently disappeared when creating a station — HIGH · FIXED IN CODE 28 Sep 2026 · SUPERSEDED BY 11
+> **Superseded 9 Oct 2026 (entry 11):** the "Add More Bins" step and the `addedViaMoreBins` tag no longer exist; every bin is now added with the per-stream + stepper. Kept as history.
+
 **Found via user testing** (Jaiveer): "when I added additional bins in a station there was
 a bug on creating the station."
 
@@ -241,13 +322,13 @@ station. Full suite (20 tests across three files) passing. **Not yet tested on a
 
 Carried from `../_Knowledge/02_Bug_Patterns_And_Fixes.md` and `04_Architecture_And_Storage.md`:
 
-- **Probable latent regression:** the 8 May "Create New" fix calls `populateLocationDropdown()`, which change 2B deleted on 15 May. Never checked.
+- ~~**Probable latent regression** (`populateLocationDropdown`).~~ **Moot 16 Oct 2026:** the function no longer appears anywhere in the file.
 - **Station stream type never set** — a real export showed all stations `type: null`.
-- **Hygiene debt, none executed:** 100+ `console.log`s, duplicate state objects, 4× positioning duplication, dead `isRepositioning` and `stationCreationBins`. Estimated 6–8h.
+- **Hygiene debt, none executed:** 330 `console.log`s, duplicate state objects, 4× positioning duplication. Estimated 6–8h. *(Corrected 16 Oct 2026: `isRepositioning` and `stationCreationBins` are live code, not dead.)*
 - **`VERSION_3_AUDIT` pre-production checklist** — every box unchecked, including two dead modals and two dead functions flagged HIGH for deletion.
-- **`DAILY_TEST.html`** — named as the pre-deploy gate in the old CLAUDE.md and TESTING_GUIDE, but it only exists in `Archive/`. Restore it or stop citing it.
-- **No multi-tab synchronization** — silent overwrite, unrecoverable.
-- **No sync-status visibility** for queued offline photos.
+- **`DAILY_TEST.html`** — named as the pre-deploy gate in the old CLAUDE.md and TESTING_GUIDE. *(Corrected 16 Oct 2026: it now exists in `Internal-Tool/`; not yet confirmed that it still runs against the current build.)*
+- **No multi-tab synchronization** — *partly mitigated 16 Oct 2026* by the Sheet overwrite guard + History tab (13); two tabs on one phone can still overwrite each other locally.
+- **No sync-status visibility** for queued offline photos or floors (still open — see 12).
 - **Never diagnosed:** "indicator instead of pin" on mobile; "stream size buttons unresponsive" was closed as already-working without a reproduction.
 - **Not implemented:** post-creation station name/letter editing, floor-level occupancy, navigation consistency.
 - ~~**No source control.**~~ **CORRECTED 27 Aug 2026** — git is initialised with a remote at
@@ -255,7 +336,7 @@ Carried from `../_Knowledge/02_Bug_Patterns_And_Fixes.md` and `04_Architecture_A
   `Archive/`, `.env.example`) are still untracked. The docs elsewhere in this project
   still say there is no version control; they are out of date.
 
-## Positioning subsystem — RESOLVED 11 Sep 2026 (code), UNVERIFIED IN FIELD
+## Positioning subsystem — FIXED IN CODE 11 Sep 2026 · UNVERIFIED ON DEVICE
 
 From `../_Knowledge/01_Coordinate_And_Pin_System.md`, originally logged as:
 
@@ -343,7 +424,8 @@ pin placement feels right, per this file's own rule.
 
 Update it in place. Mark an item `RESOLVED <date> — <how it was verified>` rather than
 deleting it; a blocker that came back once will come back again. `Fixed` requires that
-someone ran it and watched it work.
+someone ran it and watched it work. Until then use `FIXED IN CODE · UNVERIFIED ON DEVICE`.
+Tick items off the on-device checklist at the top as they are watched working.
 
 ## Field test feedback — MFS Luxembourg, 08 Sep 2026 (Tuesday)
 
@@ -769,50 +851,3 @@ sandboxed shell; jsdom hangs fetching external resources). Needs on-device testi
 back-to-back photos online, a stretch offline with several photos then reconnecting, and
 a deliberately-broken sync (e.g. wrong token again) to confirm the retry queue and modal
 behave as expected without creating duplicate Drive files.
-
-## 08 — 2nd station: waste streams not selectable; floor-plan scrolling painful
-**Status:** FIXED in code 8 Oct 2026 — needs on-device confirmation
-- **Cause (streams):** the streams list scrolled sideways (overflow-y:auto implies overflow-x:auto) and kept its sideways offset between stations, pushing the checkboxes off-screen so size buttons stayed disabled.
-- **Fix:** overflow-x hidden, scrollLeft/scrollTop reset on open and render, header row wraps (checkbox, name, size buttons stay in view).
-- **Floor plan:** plan container now 62vh tall with 12px side gutters so the page can be scrolled by touching the margins. Values are tunable.
-- **To test on device:** create station A then B — tick streams without "Add More Bins"; scroll the page around the plan; place a pin and confirm it lands where tapped.
-
-## 09 — Stream colours linked to platform sorting-rule colours
-**Status:** DONE in code 9 Oct 2026 — needs eyeball check on device
-- Hex values sampled from the platform's Sorting Rules stream tiles (Mixed Recycling #6096B4, Trash #595A5C, Organics #DF6D40, Paper and Cardboard #84BC51, Cardboard #3B86C3, Glass #24431A, E-Waste #181717, Food Donation #C642A4, Coffee Pods Grounds #6A503B, Sink #14377E, Hazardous #FFFF61, Soft Plastics #CCCCCC).
-- App stream names map to the platform stream (Compost→Organics, Recycling→Mixed Recycling, Biohazard→Hazardous, Food Share→Food Donation, Plastics/Metals/Cartons→Mixed Recycling). Unknown streams are neutral grey.
-- Pale Hazardous/Soft Plastics use a darker shade for text only (unreadable on white otherwise).
-- Note: the Site Visit Workflow deck pin key (Trash black, Recycle blue, Compost green…) is a separate PIN key and was not used for stream colours.
-
-## 10 — Floor plan saved to Drive + pin check in Sheet
-**Status:** DONE in code 9 Oct 2026 — **needs new Code.gs deployed**, then on-device test
-- Before: the floor plan image lived only in this browser's localStorage (never in Drive).
-- Now: original plan uploaded once; annotated plan (all pins drawn) re-uploaded whenever pins are added/moved/removed. Files: `<Building>_F<n>_FloorPlan_original.jpg` / `_annotated.jpg` in the building's Drive folder (old copy is trashed, not hard-deleted).
-- Stations tab: new `planLink` column; pin position stays in `x`,`y` (% of plan width/height). Floors tab: both links, pinsOnImage, stationsInSheet, pinnedInSheet and a `check` column (OK / CHECK).
-- Failed uploads retry every 45 s and when back online.
-
-## 11 — Station modal: bin count per stream
-**Status:** DONE in code 9 Oct 2026 — needs on-device test
-- Each stream has a − / + stepper; every bin gets its own size and optional accessories; new bin copies the previous one in that stream. Running total shown at the top. Max 12 per stream.
-- Removed the separate "Add More Bins" modal and the placeholder-bin model it relied on.
-
-## 12 — Station creation → Drive sync review (data-loss risks)
-**Fixed now (9 Oct):**
-- Floor-data sync failure was never retried until the next edit → now retried every 45 s and on reconnect.
-- Apps Script writes were not serialised → all POSTs now take a script lock.
-- Floor plan existed only on the phone → now in Drive (entry 10).
-**Still open (recommended next):**
-1. Floor plans (base64) live in localStorage (~5 MB quota) alongside all station data — several floors can trigger "Not saved". Move plans to IndexedDB like photos.
-2. Sheet sync is replace-per-floor: a stale tab / cleared storage / new device syncing an empty or partial floor would overwrite good rows. Add a server guard (refuse if incoming rows drop sharply) and a history tab.
-3. No visible "all saved to Drive ✓ / n pending" status per floor on the floor screen.
-4. No automatic backup: add a one-tap "Download backup (JSON)" per floor/building.
-5. Shared token ("123") and Web App URL are in the page source — fine for field testing, rotate before wider use.
-
-## 13 — Storage move, overwrite guard, Restore from Drive
-**Status:** DONE in code 16 Oct 2026 — **needs new Code.gs deployed**, then on-device test
-- **Floor plans → IndexedDB.** Plans no longer sit in localStorage next to station data. Existing plans migrate automatically at startup: copied to IndexedDB, read back and verified, only then removed from localStorage. If IndexedDB fails, the plan stays in localStorage (no loss).
-- **Overwrite guard (Apps Script).** A sync that would delete everything on a floor, or more than half of 3+ saved rows, is refused. The phone shows an orange "Drive sync paused" banner with *Restore from Drive* and *Overwrite Drive* buttons; auto-retry stops until you choose. Whenever rows are removed or force-overwritten, the old rows are first copied to a new **History** tab.
-- **Restore from Drive (new).** Sync/Photo Queue modal → ☁️ Restore → pick a building. Adds whatever the phone is missing (floors, stations + bins, pins, gateways, displays, photo links; plan image and photo bytes download in the background). Additive only — never overwrites or deletes local data. Needs a Floors row per floor, which every sync now writes (older data fills in on its next sync).
-- **Bug fixed (existing since v2):** `writeSheetRows_` only cleared as many rows as the new data had, so when a floor's rows shrank (e.g. a bin deleted) stale rows stayed in the Sheet. Now clears the full previous range.
-- **Bug fixed:** Building List "Streams" column was written as "[object Object]"; now the stream names.
-- Open: History tab has no size cap; a retention rule (e.g. 90 days) can be added later. Restore is one-phone-at-a-time (no merge of conflicting edits).
