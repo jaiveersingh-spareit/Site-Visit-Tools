@@ -25,8 +25,9 @@ const SHEET_SCHEMA_V2 = {
   'Displays': ['floorId', 'displayId', 'label', 'location', 'tagId', 'x', 'y', 'notes', 'lastUpdated'],
   'Photos': ['stationId', 'photoType', 'driveFileId', 'shareableLink', 'timestamp', 'photoId'],
   'Floors': ['floorId', 'floor', 'building', 'planOriginalLink', 'planAnnotatedLink', 'pinsOnImage', 'stationsInSheet', 'pinnedInSheet', 'check', 'lastUpdated'],
+  'History': ['snapshotAt', 'reason', 'tab', 'floorId', 'rowValues'],
 };
-const SHEET_TAB_ORDER = ['Instructions', 'Building List', 'Stations', 'Gateways', 'Displays', 'Photos', 'Floors'];
+const SHEET_TAB_ORDER = ['Instructions', 'Building List', 'Stations', 'Gateways', 'Displays', 'Photos', 'Floors', 'History'];
 
 const INSTRUCTIONS_TEXT = [
   ['📋 Site Visit Sync — How This Sheet Works'],
@@ -173,6 +174,12 @@ function doGet(e) {
   if (e.parameter.action === 'getPhoto') {
     return handleGetPhoto_(e);
   }
+  if (e.parameter.action === 'listBuildings') {
+    return handleListBuildings_();
+  }
+  if (e.parameter.action === 'loadBuilding') {
+    return handleLoadBuilding_(e.parameter.building);
+  }
 
   const floorId = e.parameter.floorId;
   if (!floorId) {
@@ -242,9 +249,37 @@ function doPost_(e) {
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   ensureColumns_(ss.getSheetByName('Stations'), ['planLink']); // self-heal older sheets
-  writeSheetRows_(ss.getSheetByName('Stations'), body.floorId, body.stations);
-  if (Array.isArray(body.gateways)) writeSheetRows_(ss.getSheetByName('Gateways'), body.floorId, body.gateways);
-  if (Array.isArray(body.displays)) writeSheetRows_(ss.getSheetByName('Displays'), body.floorId, body.displays);
+
+  // ── Overwrite guard (16 Oct 2026) ──
+  // Every sync REPLACES a floor's rows. A phone with an empty or stale copy
+  // (cleared storage, new device, old tab) would silently wipe good data.
+  // So: (1) check ALL tabs first and refuse the whole sync if any would lose
+  // most of its rows, unless the client explicitly sends force:true;
+  // (2) whenever rows would be removed (or a forced overwrite happens) copy
+  // the old rows to the History tab first, so nothing is ever unrecoverable.
+  const writes = [
+    ['Stations', body.stations],
+    ['Gateways', body.gateways],
+    ['Displays', body.displays],
+  ].filter(w => Array.isArray(w[1]));
+  const plans = writes.map(w => {
+    const sheet = ss.getSheetByName(w[0]);
+    const existing = existingFloorRows_(sheet, body.floorId);
+    return { tab: w[0], sheet, existing, incoming: w[1].length, rows: w[1] };
+  });
+  if (!body.force) {
+    const bad = plans.find(p => isDestructiveOverwrite_(p.existing.length, p.incoming));
+    if (bad) {
+      return jsonResponse_({ error: 'overwrite_blocked', blocked: true, tab: bad.tab, existing: bad.existing.length, incoming: bad.incoming });
+    }
+  }
+  plans.forEach(p => {
+    if (p.existing.length && (p.incoming < p.existing.length || body.force)) {
+      snapshotRows_(ss, p.tab, body.floorId, p.existing, body.force ? 'forced overwrite' : 'rows removed');
+    }
+    writeSheetRows_(p.sheet, body.floorId, p.rows);
+  });
+  upsertFloorRow_(ss, body);
 
   let photoResult = null;
   let buildingFolderResult = null;
@@ -341,7 +376,11 @@ function writeSheetRows_(sheet, floorId, rows) {
   }));
 
   const allRows = keepRows.concat(newRows);
-  sheet.getRange(2, 1, Math.max(allRows.length, 1), headers.length).clearContent();
+  // Bug fix (16 Oct 2026): this used to clear only as many rows as the NEW
+  // data has. When a floor's row count shrank (e.g. a bin deleted), the old
+  // rows below the new data were never cleared, leaving stale duplicates in the
+  // sheet. Clear everything that was there before (data.length - 1 body rows).
+  sheet.getRange(2, 1, Math.max(allRows.length, data.length - 1, 1), headers.length).clearContent();
   if (allRows.length > 0) {
     sheet.getRange(2, 1, allRows.length, headers.length).setValues(allRows);
   }
@@ -534,4 +573,84 @@ function ensureColumns_(sheet, names) {
   if (!sheet) return;
   const have = sheet.getLastRow() > 0 ? sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0] : [];
   names.forEach(n => { if (have.indexOf(n) === -1) { have.push(n); sheet.getRange(1, have.length).setValue(n); } });
+}
+
+
+// ── Overwrite guard helpers ──────────────────────────────────────────────
+// Destructive = would delete everything, or (for floors with 3+ rows) more
+// than half of what is saved. Normal edits (deleting one bin, fixing a
+// station) never trip this.
+function isDestructiveOverwrite_(existingCount, incomingCount) {
+  if (existingCount === 0) return false;
+  if (incomingCount === 0) return true;
+  return existingCount >= 3 && incomingCount < existingCount * 0.5;
+}
+
+function existingFloorRows_(sheet, floorId) {
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  const data = sheet.getDataRange().getValues();
+  const col = data[0].indexOf('floorId');
+  return data.slice(1).filter(r => r[col] === floorId);
+}
+
+// Copies rows about to be removed/replaced into the History tab (one History
+// row per old row: snapshotAt, reason, tab, floorId, then the original cells).
+function snapshotRows_(ss, tab, floorId, rows, reason) {
+  let sheet = ss.getSheetByName('History');
+  if (!sheet) { sheet = ss.insertSheet('History'); sheet.getRange(1, 1, 1, 5).setValues([SHEET_SCHEMA_V2['History']]); sheet.setFrozenRows(1); }
+  const at = new Date().toISOString();
+  const out = rows.map(r => [at, reason, tab, floorId].concat(r.map(v => (v === null || v === undefined) ? '' : v)));
+  const width = out.reduce((m, r) => Math.max(m, r.length), 5);
+  out.forEach(r => { while (r.length < width) r.push(''); });
+  sheet.getRange(sheet.getLastRow() + 1, 1, out.length, width).setValues(out);
+}
+
+// Keeps a Floors row for EVERY synced floor (not just ones with a plan), so
+// "Restore from Drive" can find all of a building's floors.
+function upsertFloorRow_(ss, body) {
+  if (!body.buildingName || body.floorNumber === undefined || body.floorNumber === null) return;
+  const sheet = getOrCreateFloorsSheet_(ss);
+  const hdr = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const data = sheet.getDataRange().getValues();
+  const idCol = hdr.indexOf('floorId');
+  let rowIdx = -1;
+  for (let i = 1; i < data.length; i++) if (data[i][idCol] === body.floorId) { rowIdx = i; break; }
+  const row = rowIdx === -1 ? new Array(hdr.length).fill('') : data[rowIdx].slice();
+  const set = (n, v) => { const k = hdr.indexOf(n); if (k !== -1) row[k] = v; };
+  set('floorId', body.floorId); set('floor', body.floorNumber); set('building', body.buildingName); set('lastUpdated', new Date().toISOString());
+  if (rowIdx === -1) sheet.appendRow(row); else sheet.getRange(rowIdx + 1, 1, 1, hdr.length).setValues([row]);
+}
+
+// ── Restore (read) endpoints ─────────────────────────────────────────────
+function sheetObjects_(sheet) {
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  const data = sheet.getDataRange().getValues();
+  const hdr = data[0];
+  return data.slice(1).map(r => { const o = {}; hdr.forEach((h, i) => o[h] = r[i]); return o; });
+}
+
+function handleListBuildings_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const buildings = sheetObjects_(ss.getSheetByName('Building List')).filter(r => r['Building Name']).map(r => ({
+    name: r['Building Name'], address: r['Address'], hauler: r['Hauler'], auditor: r['Auditor'], streams: r['Streams'], folderId: r['Drive Folder ID'],
+  }));
+  return jsonResponse_({ ok: true, buildings });
+}
+
+function handleLoadBuilding_(buildingName) {
+  if (!buildingName) return jsonResponse_({ error: 'building is required' });
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const bRow = sheetObjects_(ss.getSheetByName('Building List')).find(r => r['Building Name'] === buildingName);
+  const floors = sheetObjects_(ss.getSheetByName('Floors')).filter(r => r.building === buildingName && r.floorId);
+  const ids = {}; floors.forEach(f => ids[f.floorId] = true);
+  const stations = sheetObjects_(ss.getSheetByName('Stations')).filter(r => ids[r.floorId]);
+  const gateways = sheetObjects_(ss.getSheetByName('Gateways')).filter(r => ids[r.floorId]);
+  const displays = sheetObjects_(ss.getSheetByName('Displays')).filter(r => ids[r.floorId]);
+  const stationIds = {}; stations.forEach(s => stationIds[s.stationId] = true);
+  const photos = sheetObjects_(ss.getSheetByName('Photos')).filter(p => stationIds[p.stationId]);
+  return jsonResponse_({
+    ok: true, buildingName,
+    building: bRow ? { name: bRow['Building Name'], address: bRow['Address'], hauler: bRow['Hauler'], auditor: bRow['Auditor'], streams: bRow['Streams'], folderId: bRow['Drive Folder ID'] } : null,
+    floors, stations, gateways, displays, photos,
+  });
 }

@@ -1287,6 +1287,21 @@
      Functions removed: startGatewayPositioningForNewGateway(), startDisplayPositioningForNewDisplay()
 -->
 
+<!-- Restore from Drive -->
+<div class="modal-overlay" id="modal-restore">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">☁️ Restore from Drive</div>
+    <label class="flabel">Building</label>
+    <select id="restore-building" style="width:100%;margin-bottom:10px;"></select>
+    <div id="restore-status" style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-restore')">Close</button>
+      <button class="btn btn-primary" style="flex:2" onclick="runRestoreFromDrive()">Restore</button>
+    </div>
+  </div>
+</div>
+
 <!-- Add Bin -->
 <!-- Photo Upload Queue — every photo not yet confirmed on Drive, with live status -->
 <div class="modal-overlay" id="modal-photo-queue">
@@ -1298,6 +1313,7 @@
     <div id="sync-log-list" style="max-height:20vh;overflow-y:auto;margin-bottom:12px;font-size:12px;"></div>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-yellow" style="flex:1;" onclick="syncAllPending()">🔄 Sync All Now</button>
+      <button class="btn btn-outline" style="flex:1;" onclick="openRestoreModal()">☁️ Restore</button>
       <button class="btn btn-outline" style="flex:1;" onclick="closeModal('modal-photo-queue')">Close</button>
     </div>
   </div>
@@ -1877,8 +1893,13 @@ function scheduleFloorDataSync(){
   floorDataSyncDebounceTimer = setTimeout(() => syncFloorDataToBackend(floorId), 2000);
 }
 
+const floorDataBlocked = {}; // floorId -> server's 'overwrite_blocked' details (16 Oct 2026)
 function syncFloorDataToBackend(floorId, opts){
   const force = opts && opts.force;
+  const overwrite = !!(opts && opts.overwrite);
+  // A blocked floor stays paused (no 45 s retry spam) until the user restores
+  // from Drive or explicitly chooses to overwrite.
+  if (floorDataBlocked[floorId] && !overwrite) return;
   const floor = (S.floors || []).find(f => f.id === floorId);
   if (!floor) return;
   if (floorDataSyncInFlight[floorId]) return; // in-flight guard, same pattern as photo sync
@@ -1902,21 +1923,29 @@ function syncFloorDataToBackend(floorId, opts){
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({
       token: SYNC_TOKEN,
-      floorId,
+      floorId, floorNumber: floor.number, buildingName: S.building,
       stations, gateways, displays,
+      force: overwrite,
       driveFolderId: SYNC_PHOTOS_FOLDER_ID,
-      building: { address: S.address, hauler: S.hauler, auditor: S.auditor, streams: (S.selectedStreams || []).join(',') },
+      building: { address: S.address, hauler: S.hauler, auditor: S.auditor, streams: (S.selectedStreams || []).map(o => o.stream || o).join(',') },
     }),
   })
   .then(res => res.json())
   .then(result => {
     floorDataSyncInFlight[floorId] = false;
     const elapsedMs = Date.now() - startedAt;
+    if (result && result.blocked) {
+      floorDataBlocked[floorId] = result;
+      logSyncEvent('Floor ' + floor.number + ' sync BLOCKED: would replace ' + result.existing + ' ' + result.tab + ' row(s) in the Sheet with ' + result.incoming + '. Nothing was overwritten.', 'error');
+      showSyncBlockedBanner(floorId);
+      return;
+    }
     if (!result || result.error) {
       logSyncEvent('Floor ' + floor.number + ' data sync failed (' + elapsedMs + 'ms): ' + (result && result.error || 'unknown error'), 'error');
       return;
     }
     floorDataLastSyncedHash[floorId] = payloadHash;
+    if (floorDataBlocked[floorId]) { delete floorDataBlocked[floorId]; hideSyncBlockedBanner(); }
     logSyncEvent('Floor ' + floor.number + ' synced — ' + (result.stationsWritten||0) + ' bin rows, ' +
       (result.gatewaysWritten||0) + ' gateways, ' + (result.displaysWritten||0) + ' displays (' + elapsedMs + 'ms).', 'success');
     if (result.buildingFolder && result.buildingFolder.id && S.driveFolderId !== result.buildingFolder.id) {
@@ -1945,7 +1974,7 @@ function syncFloorDataToBackend(floorId, opts){
 const floorPlanSyncInFlight = {};
 const floorPlanSyncAgain = {};
 function planOriginalKey_(floor){
-  const u = floor.planDataUrl || '';
+  const u = getPlanDataUrl(floor);
   return hashString_(u.length + ':' + u.slice(0, 300) + u.slice(-300));
 }
 function planAnnotatedKey_(floor){
@@ -1971,13 +2000,15 @@ function postFloorPlan_(floor, kind, dataUrl){
 }
 async function syncFloorPlanToDrive(floorId){
   const floor = (S.floors || []).find(f => f.id === floorId);
-  if (!SYNC_ENABLED || !floor || !floor.planDataUrl || isOffline) return;
+  if (!SYNC_ENABLED || !floor || !floorHasPlan(floor) || isOffline) return;
   if (floorPlanSyncInFlight[floorId]) { floorPlanSyncAgain[floorId] = true; return; }
   floorPlanSyncInFlight[floorId] = true;
   try {
+    const planUrl = await ensurePlanLoaded(floor);
+    if (!planUrl) return; // plan not readable right now — try again next cycle
     const origKey = planOriginalKey_(floor);
     if (floor.planOriginalSynced !== origKey) {
-      const res = await postFloorPlan_(floor, 'original', floor.planDataUrl);
+      const res = await postFloorPlan_(floor, 'original', planUrl);
       if (!res || res.error) throw new Error((res && res.error) || 'original upload failed');
       floor.planOriginalSynced = origKey; floor.planOriginalLink = res.link || '';
       logSyncEvent('Floor ' + floor.number + ' plan saved to Drive.', 'success');
@@ -2006,8 +2037,175 @@ function retryFloorSyncs(){
   if (!SYNC_ENABLED || isOffline) return;
   (S.floors || []).forEach(f => {
     syncFloorDataToBackend(f.id); // hash-guarded: only sends if rows changed since last success
-    if (f.planDataUrl && (f.planOriginalSynced !== planOriginalKey_(f) || f.planAnnotatedSynced !== planAnnotatedKey_(f))) syncFloorPlanToDrive(f.id);
+    if (floorHasPlan(f)) syncFloorPlanToDrive(f.id); // no-op when both uploads are current
   });
+}
+
+// ── OVERWRITE GUARD UI + RESTORE FROM DRIVE (16 Oct 2026) ─────────────────
+function showSyncBlockedBanner(floorId){
+  const floor = (S.floors || []).find(f => f.id === floorId);
+  const info = floorDataBlocked[floorId] || {};
+  let b = document.getElementById('sync-blocked-banner');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'sync-blocked-banner';
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99998;background:#E65100;color:#fff;padding:10px 14px;font-size:13px;font-weight:600;';
+    document.body.appendChild(b);
+  }
+  b.innerHTML = '⚠️ Drive sync paused' + (floor ? ' for Floor ' + floor.number : '') + ': this phone would replace ' + (info.existing || '?') + ' saved row(s) with ' + (info.incoming || 0) + '. Nothing was overwritten.' +
+    '<div style="display:flex;gap:8px;margin-top:8px;">' +
+    '<button style="flex:1;padding:8px;border:none;border-radius:6px;font-weight:700;" onclick="openRestoreModal()">Restore from Drive</button>' +
+    '<button style="flex:1;padding:8px;border:none;border-radius:6px;font-weight:700;background:#fff;color:#B71C1C;" onclick="forceOverwriteFloor(\'' + floorId + '\')">Overwrite Drive</button></div>';
+}
+function hideSyncBlockedBanner(){
+  if (Object.keys(floorDataBlocked).length) return; // another floor is still blocked
+  const b = document.getElementById('sync-blocked-banner');
+  if (b) b.remove();
+}
+function forceOverwriteFloor(floorId){
+  const info = floorDataBlocked[floorId] || {};
+  if (!confirm('Replace the ' + (info.existing || '') + ' rows saved in the Sheet with this phone\'s ' + (info.incoming || 0) + '? The old rows are first copied to the History tab.')) return;
+  return syncFloorDataToBackend(floorId, { overwrite: true, force: true });
+}
+
+function syncGet_(params){
+  const qs = Object.keys(params).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');
+  return fetch(SYNC_URL + '?token=' + encodeURIComponent(SYNC_TOKEN) + '&' + qs).then(r => r.json());
+}
+function setRestoreStatus_(msg){ const el = document.getElementById('restore-status'); if (el) el.textContent = msg; }
+
+async function openRestoreModal(){
+  openModal('modal-restore');
+  const sel = document.getElementById('restore-building');
+  sel.innerHTML = '';
+  setRestoreStatus_('Loading buildings from Drive…');
+  try {
+    const res = await syncGet_({ action: 'listBuildings' });
+    if (!res || res.error) throw new Error((res && res.error) || 'no response');
+    (res.buildings || []).forEach(b => {
+      const o = document.createElement('option'); o.value = b.name; o.textContent = b.name; sel.appendChild(o);
+    });
+    if (S.building) sel.value = S.building;
+    setRestoreStatus_((res.buildings || []).length ? 'Pick a building. Restore only ADDS what this phone is missing — it never overwrites or deletes anything here.' : 'No buildings found in Drive yet.');
+  } catch (e) { setRestoreStatus_('Could not reach Drive: ' + e); }
+}
+
+async function runRestoreFromDrive(){
+  const name = document.getElementById('restore-building').value;
+  if (!name) return;
+  if (S.building && S.building !== name && !confirm('This phone is working on "' + S.building + '". Add "' + name + '" data into it?')) return;
+  setRestoreStatus_('Downloading from Drive…');
+  try {
+    const data = await syncGet_({ action: 'loadBuilding', building: name });
+    if (!data || data.error) throw new Error((data && data.error) || 'no response');
+    const sum = mergeDriveBuildingIntoState_(data);
+    persist();
+    renderFloors && renderFloors();
+    Object.keys(floorDataBlocked).forEach(k => delete floorDataBlocked[k]);
+    hideSyncBlockedBanner();
+    const b = document.getElementById('sync-blocked-banner'); if (b) b.remove();
+    const msg = 'Restored: ' + sum.floorsAdded + ' floor(s), ' + sum.stationsAdded + ' station(s), ' + sum.gatewaysAdded + ' gateway(s), ' + sum.displaysAdded + ' display(s), ' + sum.photosAdded + ' photo link(s). Plans & photos load in the background.';
+    setRestoreStatus_(msg);
+    logSyncEvent(msg, 'success');
+    hydrateRestoredFromDrive_(sum).catch(e => console.warn('[RESTORE] background hydrate failed:', e));
+  } catch (e) { setRestoreStatus_('Restore failed: ' + e); }
+}
+
+function fileIdFromLink_(link){
+  const m = String(link || '').match(/\/d\/([A-Za-z0-9_-]+)/) || String(link || '').match(/[?&]id=([A-Za-z0-9_-]+)/);
+  return m ? m[1] : '';
+}
+function numOrNull_(v){ return (v === '' || v === null || v === undefined || isNaN(Number(v))) ? null : Number(v); }
+
+// ADDITIVE merge: anything this phone already has (matched by id) is left
+// exactly as is; only what is missing is added. Pure function of (S, data) —
+// no network — so it can be tested directly.
+function mergeDriveBuildingIntoState_(data){
+  const sum = { floorsAdded: 0, stationsAdded: 0, gatewaysAdded: 0, displaysAdded: 0, photosAdded: 0, plansToFetch: [], photosToFetch: [] };
+  const bRow = data.building || {};
+  if (!S.building) {
+    S.building = bRow.name || data.buildingName || '';
+    S.address = bRow.address || S.address || '';
+    S.hauler = bRow.hauler || S.hauler || '';
+    S.auditor = bRow.auditor || S.auditor || '';
+    if ((!S.selectedStreams || !S.selectedStreams.length) && bRow.streams && String(bRow.streams).indexOf('[object') === -1) {
+      S.selectedStreams = String(bRow.streams).split(',').map(x => x.trim()).filter(Boolean).map(stream => ({ stream, code: getStreamCode(stream) }));
+    }
+    if (bRow.folderId) { S.driveFolderId = bRow.folderId; S.driveFolderLink = 'https://drive.google.com/drive/folders/' + bRow.folderId; }
+  }
+  if (!Array.isArray(S.floors)) S.floors = [];
+
+  (data.floors || []).forEach(fr => {
+    let floor = S.floors.find(f => f.id === fr.floorId);
+    if (!floor) {
+      floor = { id: fr.floorId, number: fr.floor, occupancy: '', planDataUrl: '', hasPlan: false, planName: '', stations: [], gateways: [], displays: [] };
+      S.floors.push(floor); sum.floorsAdded++;
+    }
+    if (!floorHasPlan(floor) && fr.planOriginalLink) sum.plansToFetch.push({ floorId: floor.id, fileId: fileIdFromLink_(fr.planOriginalLink), link: fr.planOriginalLink });
+
+    // Stations (grouped back from one-row-per-bin)
+    const byStation = {};
+    (data.stations || []).filter(r => r.floorId === fr.floorId).forEach(r => { (byStation[r.stationId] = byStation[r.stationId] || []).push(r); });
+    Object.keys(byStation).forEach(stId => {
+      if (floor.stations.some(s => s.id === stId)) return;
+      const rows = byStation[stId], r0 = rows[0];
+      const bins = rows.filter(r => r.stream).map(r => {
+        const accessories = [r.accessory, r.accessory2].filter(Boolean);
+        const acc = accessories.map(a => ACCESSORY_CODES[a] || '?').join('');
+        return { stream: r.stream, scale: r.scale, code: String(r.binId || '') + (acc ? '_' + acc : ''), accessories, photos: [] };
+      });
+      floor.stations.push({ id: stId, letter: r0.letter, name: r0.stationName || r0.letter, signage: '', photos: [], notes: r0.notes || '', bins, x: numOrNull_(r0.x), y: numOrNull_(r0.y) });
+      sum.stationsAdded++;
+    });
+    (data.gateways || []).filter(r => r.floorId === fr.floorId && !floor.gateways.some(g => g.id === r.gatewayId)).forEach(r => {
+      floor.gateways.push({ id: r.gatewayId, label: r.label, location: r.location || '', tagId: r.tagId || '', notes: r.notes || '', photoName: '', photoDataUrl: '', x: numOrNull_(r.x), y: numOrNull_(r.y) });
+      sum.gatewaysAdded++;
+    });
+    (data.displays || []).filter(r => r.floorId === fr.floorId && !floor.displays.some(d => d.id === r.displayId)).forEach(r => {
+      floor.displays.push({ id: r.displayId, label: r.label, location: r.location || '', tagId: r.tagId || '', notes: r.notes || '', photoName: '', photoDataUrl: '', x: numOrNull_(r.x), y: numOrNull_(r.y) });
+      sum.displaysAdded++;
+    });
+    // Photos: link entries back to their stations (bytes are fetched in the background)
+    floor.stations.forEach(st => {
+      (data.photos || []).filter(p => p.stationId === st.id && p.driveFileId).forEach(p => {
+        if ((st.photos || []).some(x => x.driveFileId === p.driveFileId)) return;
+        const ts = Date.parse(p.timestamp) || Date.now() + sum.photosAdded;
+        const entry = { timestamp: ts, name: 'restored_from_drive.jpg', syncStatus: 'synced', synced: true, driveFileId: p.driveFileId, driveFullLink: p.shareableLink || '' };
+        st.photos = st.photos || []; st.photos.push(entry);
+        sum.photosAdded++; sum.photosToFetch.push({ stationId: st.id, timestamp: ts, fileId: p.driveFileId });
+      });
+    });
+  });
+  return sum;
+}
+
+// Background step after a restore: pull plan images and photo bytes from
+// Drive into local IndexedDB (a few at a time) so they show up and export
+// like any locally captured item. Failures are harmless — the entries keep
+// their Drive file ids, so exports still fetch from Drive.
+async function hydrateRestoredFromDrive_(sum){
+  for (const pl of sum.plansToFetch) {
+    try {
+      const res = await syncGet_({ action: 'getPhoto', fileId: pl.fileId });
+      if (!res || res.error || !res.base64) continue;
+      const floor = (S.floors || []).find(f => f.id === pl.floorId);
+      if (!floor || floorHasPlan(floor)) continue;
+      await savePlanForFloor(floor, 'data:' + (res.mimeType || 'image/jpeg') + ';base64,' + res.base64);
+      floor.planOriginalSynced = planOriginalKey_(floor); floor.planOriginalLink = pl.link;
+      persist();
+      if (curFloorId === floor.id) renderFloorDetail();
+    } catch (e) { console.warn('[RESTORE] plan fetch failed:', e); }
+  }
+  for (let i = 0; i < sum.photosToFetch.length; i += 3) {
+    await Promise.all(sum.photosToFetch.slice(i, i + 3).map(async ph => {
+      try {
+        const res = await syncGet_({ action: 'getPhoto', fileId: ph.fileId });
+        if (!res || res.error || !res.base64) return;
+        await idbPutPhoto(ph.timestamp, dataUrlToBlob('data:' + (res.mimeType || 'image/jpeg') + ';base64,' + res.base64));
+      } catch (e) { console.warn('[RESTORE] photo fetch failed:', e); }
+    }));
+  }
+  logSyncEvent('Restore from Drive: plans and photos downloaded.', 'success');
 }
 
 let baseContainerWidth = 0;
@@ -2633,6 +2831,7 @@ window.addEventListener('offline',()=>{ isOffline=true; updateSyncStatus(); });
     if(saved?.building){
       console.log('[INIT] Previous session found, restoring...');
       S=saved;
+      migratePlansToIndexedDb().catch(e => console.warn('[INIT] plan migration failed:', e)); // 16 Oct 2026
 
       // CRITICAL: Ensure selectedStreams exists and is an array
       if(!S.selectedStreams || !Array.isArray(S.selectedStreams)){
@@ -3487,7 +3686,7 @@ function renderFloors(){
 function addFloor(){
   const num=document.getElementById('new-floor').value.trim();
   if(!num){ alert('Enter a floor number or label.'); return; }
-  S.floors.push({id:uid(),number:num,occupancy:'',planDataUrl:'',planName:'',stations:[],gateways:[],displays:[]});
+  S.floors.push({id:uid(),number:num,occupancy:'',planDataUrl:'',hasPlan:false,planName:'',stations:[],gateways:[],displays:[]});
   persist(); closeModal('modal-floor'); renderFloors();
   document.getElementById('new-floor').value='';
 }
@@ -3533,12 +3732,16 @@ function renderFloorDetail(){
   }
 
   const f=gF();
-  if(f.planDataUrl){
+  if(!getPlanDataUrl(f) && f.hasPlan){
+    // Plan lives in IndexedDB — load it, then re-render this screen.
+    ensurePlanLoaded(f).then(u => { if(u && curFloorId===f.id) renderFloorDetail(); });
+  }
+  if(getPlanDataUrl(f)){
     document.getElementById('plan-upload-area').style.display='none';;
     document.getElementById('plan-container').style.display='block';;
 
     const planImg = document.getElementById('plan-img');
-    planImg.src = f.planDataUrl;
+    planImg.src = getPlanDataUrl(f);
 
     // Set up onload handler to properly size the image when it loads
     planImg.onload = () => {
@@ -3812,8 +4015,8 @@ function handlePlanUpload(e){
   const reader=new FileReader();
   reader.onload=ev=>{
     // Resize image before saving (max 1200×600px)
-    resizeAndSaveImage(ev.target.result, (resizedDataUrl) => {
-      f.planDataUrl = resizedDataUrl;
+    resizeAndSaveImage(ev.target.result, async (resizedDataUrl) => {
+      await savePlanForFloor(f, resizedDataUrl); // IndexedDB first; falls back to localStorage if that fails
       f.planOriginalSynced = null; f.planAnnotatedSynced = null; // new plan image -> re-upload both
       persist();
       renderFloorDetail();
@@ -3875,8 +4078,9 @@ function compressPhotoForLocalStorage(dataUrl){
 // full-resolution bytes are stored locally too — compression now only
 // happens at upload time, for the copy that goes to Drive.
 const PHOTO_DB_NAME = 'spareit_site_visit_photos';
-const PHOTO_DB_VERSION = 1;
+const PHOTO_DB_VERSION = 2; // v2 (16 Oct 2026): adds the 'plans' store for floor plan images
 const PHOTO_STORE = 'photos';
+const PLAN_STORE = 'plans';
 let _photoDbPromise = null;
 function idbOpenPhotoDb(){
   if (_photoDbPromise) return _photoDbPromise;
@@ -3885,6 +4089,7 @@ function idbOpenPhotoDb(){
     const req = indexedDB.open(PHOTO_DB_NAME, PHOTO_DB_VERSION);
     req.onupgradeneeded = () => {
       if (!req.result.objectStoreNames.contains(PHOTO_STORE)) req.result.createObjectStore(PHOTO_STORE);
+      if (!req.result.objectStoreNames.contains(PLAN_STORE)) req.result.createObjectStore(PLAN_STORE);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -3914,6 +4119,71 @@ async function idbGetPhoto(id){
     req.onsuccess = () => resolve(req.result || null);
     req.onerror = () => reject(req.error);
   });
+}
+
+// ── FLOOR PLAN STORE (16 Oct 2026) ───────────────────────────────────────
+// Floor plan images used to live in localStorage (floor.planDataUrl) next to
+// all station data — a handful of floors could use up the ~5 MB quota and
+// make every save fail. They now live in IndexedDB (key = floor id). The
+// floor object keeps only a tiny `hasPlan` flag. `planCache` holds the data
+// URL in memory so existing synchronous code (render, pin export, sync) can
+// still read it; ensurePlanLoaded() fills the cache from IndexedDB on demand.
+// Legacy floors that still carry planDataUrl keep working and are migrated
+// at startup (migratePlansToIndexedDb).
+const planCache = {};
+async function idbPutPlan(floorId, dataUrl){
+  const db = await idbOpenPhotoDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PLAN_STORE, 'readwrite');
+    tx.objectStore(PLAN_STORE).put(dataUrl, floorId);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function idbGetPlan(floorId){
+  const db = await idbOpenPhotoDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PLAN_STORE, 'readonly');
+    const req = tx.objectStore(PLAN_STORE).get(floorId);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+function getPlanDataUrl(floor){ return (floor && (planCache[floor.id] || floor.planDataUrl)) || ''; }
+function floorHasPlan(floor){ return !!(floor && (floor.hasPlan || floor.planDataUrl)); }
+async function ensurePlanLoaded(floor){
+  if (!floor) return '';
+  if (planCache[floor.id]) return planCache[floor.id];
+  if (floor.planDataUrl) { planCache[floor.id] = floor.planDataUrl; return floor.planDataUrl; }
+  if (!floor.hasPlan) return '';
+  try {
+    const d = await idbGetPlan(floor.id);
+    if (d) { planCache[floor.id] = d; return d; }
+  } catch (e) { console.warn('[PLAN] could not read plan from IndexedDB:', e); }
+  return '';
+}
+// Writes the plan to IndexedDB and READS IT BACK before dropping the
+// localStorage copy, so a failed/partial write can never lose the plan.
+// Returns true when the plan is safely in IndexedDB; on any failure the plan
+// stays in localStorage (legacy behaviour) and false is returned.
+async function savePlanForFloor(floor, dataUrl){
+  planCache[floor.id] = dataUrl;
+  floor.hasPlan = true;
+  try {
+    await idbPutPlan(floor.id, dataUrl);
+    const back = await idbGetPlan(floor.id);
+    if (back === dataUrl) { floor.planDataUrl = ''; return true; }
+  } catch (e) { console.warn('[PLAN] IndexedDB save failed, keeping localStorage copy:', e); }
+  floor.planDataUrl = dataUrl;
+  return false;
+}
+async function migratePlansToIndexedDb(){
+  let moved = 0;
+  for (const f of (S.floors || [])) {
+    if (f.planDataUrl) { if (await savePlanForFloor(f, f.planDataUrl)) moved++; }
+    else if (f.hasPlan) { await ensurePlanLoaded(f); } // warm the cache
+  }
+  if (moved) { persist(); logSyncEvent('Moved ' + moved + ' floor plan(s) out of localStorage into IndexedDB.', 'success'); }
 }
 
 function dataUrlToBlob(dataUrl){
@@ -4044,7 +4314,12 @@ function resizeAndSaveImage(dataUrl, callback) {
 
 // ── RENDER FLOOR PLAN WITH PINS FOR EXPORT ──
 function renderFloorPlanWithPins(floor, callback) {
-  if (!floor.planDataUrl) {
+  const planUrl = getPlanDataUrl(floor);
+  if (!planUrl) {
+    if (floor.hasPlan) { // plan is in IndexedDB — load, then retry once
+      ensurePlanLoaded(floor).then(u => { if (u) renderFloorPlanWithPins(floor, callback); else callback(null); });
+      return;
+    }
     callback(null);
     return;
   }
@@ -4141,7 +4416,7 @@ function renderFloorPlanWithPins(floor, callback) {
 
     callback(canvas.toDataURL('image/jpeg', 0.90));
   };
-  img.src = floor.planDataUrl;
+  img.src = planUrl;
 }
 
 function updatePositioningMessage(){

@@ -807,3 +807,12 @@ behave as expected without creating duplicate Drive files.
 3. No visible "all saved to Drive ✓ / n pending" status per floor on the floor screen.
 4. No automatic backup: add a one-tap "Download backup (JSON)" per floor/building.
 5. Shared token ("123") and Web App URL are in the page source — fine for field testing, rotate before wider use.
+
+## 13 — Storage move, overwrite guard, Restore from Drive
+**Status:** DONE in code 16 Oct 2026 — **needs new Code.gs deployed**, then on-device test
+- **Floor plans → IndexedDB.** Plans no longer sit in localStorage next to station data. Existing plans migrate automatically at startup: copied to IndexedDB, read back and verified, only then removed from localStorage. If IndexedDB fails, the plan stays in localStorage (no loss).
+- **Overwrite guard (Apps Script).** A sync that would delete everything on a floor, or more than half of 3+ saved rows, is refused. The phone shows an orange "Drive sync paused" banner with *Restore from Drive* and *Overwrite Drive* buttons; auto-retry stops until you choose. Whenever rows are removed or force-overwritten, the old rows are first copied to a new **History** tab.
+- **Restore from Drive (new).** Sync/Photo Queue modal → ☁️ Restore → pick a building. Adds whatever the phone is missing (floors, stations + bins, pins, gateways, displays, photo links; plan image and photo bytes download in the background). Additive only — never overwrites or deletes local data. Needs a Floors row per floor, which every sync now writes (older data fills in on its next sync).
+- **Bug fixed (existing since v2):** `writeSheetRows_` only cleared as many rows as the new data had, so when a floor's rows shrank (e.g. a bin deleted) stale rows stayed in the Sheet. Now clears the full previous range.
+- **Bug fixed:** Building List "Streams" column was written as "[object Object]"; now the stream names.
+- Open: History tab has no size cap; a retention rule (e.g. 90 days) can be added later. Restore is one-phone-at-a-time (no merge of conflicting edits).
